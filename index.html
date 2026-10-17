@@ -104,7 +104,7 @@ if('serviceWorker' in navigator&&location.protocol!=='file:')addEventListener('l
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script type="module">
 import {initializeApp,deleteApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,signOut,deleteUser,updatePassword,verifyBeforeUpdateEmail} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {getFirestore,collection,doc,setDoc,addDoc,getDoc,updateDoc,writeBatch,onSnapshot,query,where,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ====== ISI DENGAN KONFIGURASI FIREBASE ANDA (Project settings > Your apps > Web) ======
@@ -120,7 +120,7 @@ const sum=a=>(a||[]).reduce((x,y)=>x+num(y),0),tw=(a,t)=>sum((a||[]).slice(t*3,t
 const PORTAL={pegawai:{t:"Pegawai",i:"user",r:["pegawai","perencana","admin_tf","admin_catat"],d:"Untuk pegawai, Admin Perencana, Admin TF, dan Admin Catat."},
  atasan:{t:"Atasan",i:"briefcase",r:["atasan"],d:"Untuk atasan dan pimpinan: memantau capaian dan SPJ bawahan."},
  super_admin:{t:"Super Admin",i:"shield",r:["super_admin"],d:"Untuk pengelola sistem: mengatur pengguna dan hak akses."}};
-const LV=["Program","Kegiatan","KRO","RO","Komponen","Sub Komponen","Akun Belanja","Detail"],JAB=["","Kabag Administrasi","Kabag P3SPH","Kabag Pengawasan & Humas","Kasubbag","Ketua Komisioner","Anggota Komisioner"],BANK=["BRI","BNI","BSI","MANDIRI","BCA","GOPAY","DANA","OVO","SHOPEEPAY"],SATKER=["PROVINSI KEPULAUAN RIAU","KABUPATEN KARIMUN","KABUPATEN LINGGA","KABUPATEN NATUNA","KABUPATEN ANAMBAS"],KODE={"KABUPATEN KARIMUN":"AB","KABUPATEN LINGGA":"AC","KABUPATEN NATUNA":"AD","KABUPATEN ANAMBAS":"AE"},/* Provinsi belum berkode; tahun depan tambahkan mis. "PROVINSI KEPULAUAN RIAU":"AA" */SN=k=>KODE[k]?KODE[k]+" - "+k:(k||""),SLIST=SATKER.map(SN).join(", ");
+const LV=["Program","Kegiatan","KRO","RO","Komponen","Sub Komponen","Akun Belanja","Detail"],JAB=["","Kabag Administrasi","Kabag P3SPH","Kabag Pengawasan & Humas","Kasubbag","Ketua Komisioner","Anggota Komisioner"],INIT="123456!@",SYN="@sirenku-e03be.web.app",BANK=["BRI","BNI","BSI","MANDIRI","BCA","GOPAY","DANA","OVO","SHOPEEPAY"],SATKER=["PROVINSI KEPULAUAN RIAU","KABUPATEN KARIMUN","KABUPATEN LINGGA","KABUPATEN NATUNA","KABUPATEN ANAMBAS"],KODE={"KABUPATEN KARIMUN":"AB","KABUPATEN LINGGA":"AC","KABUPATEN NATUNA":"AD","KABUPATEN ANAMBAS":"AE"},/* Provinsi belum berkode; tahun depan tambahkan mis. "PROVINSI KEPULAUAN RIAU":"AA" */SN=k=>KODE[k]?KODE[k]+" - "+k:(k||""),SLIST=SATKER.map(SN).join(", ");
 const isR=(...r)=>r.includes(me?.role),isP=()=>me?.role==="pegawai";
 const nm=uid=>U.find(u=>u.id===uid)?.nama||"-";
 
@@ -134,7 +134,7 @@ onAuthStateChanged(auth,u=>{unsubs.forEach(f=>f());unsubs=[];PG=[];KP={};PP={};K
  let done=false;const w=setInterval(()=>{if(!me||done)return;done=true;clearInterval(w);setup(u.uid)},300);unsubs.push(()=>clearInterval(w));
 });
 // data keuangan dimuat sesuai peran: penuh / atasan (* atau per kunci) / pegawai (milik sendiri)
-function setup(uid){if(isR("super_admin"))unsubs.push(onSnapshot(collection(db,"kepegawaian"),x=>{PG=x.docs.map(d=>({id:d.id,...d.data()}));render()},e=>{err=e.message;render()}));
+function setup(uid){unsubs.push(onSnapshot(isR("super_admin")?collection(db,"kepegawaian"):query(collection(db,"kepegawaian"),where("uid","==",uid)),x=>{PG=x.docs.map(d=>({id:d.id,...d.data()}));render()},e=>{if(isR("super_admin")){err=e.message;render()}}));
  const full=isR("super_admin","perencana","admin_tf","admin_catat"),lk=me.lingkup||[],all=full||(me.role==="atasan"&&lk.includes("*"));
  if(all){feed(PP,"all",collection(db,"pengajuan"));feed(KP,"all",collection(db,"keu"));
   unsubs.push(onSnapshot(collection(db,"saldo"),x=>{S={};x.docs.forEach(d=>S[d.id]=d.data());render()},()=>{}))}
@@ -156,18 +156,18 @@ function notifs(){const n=[];
  return n}
 
 // ---------- tampilan ----------
-const ICN={dash:"dash",ajukan:"file",bayar:"wallet",catat:"book",komp:"layers",output:"target",user:"users",pantau:"eye",kepeg:"briefcase"};
+const ICN={dash:"dash",ajukan:"file",bayar:"wallet",catat:"book",komp:"layers",output:"target",user:"users",pantau:"eye",kepeg:"briefcase",profil:"user"};
 const ic=n=>`<svg class="i" viewBox="0 0 24 24"><use href="#i-${n}"/></svg>`;
 function render(){const a=$("app");
  if(!auth.currentUser){const pt=PORTAL[portal];return a.innerHTML=`<div class="lg"><div class="lb"><div class="em">${ic("landmark")}</div><h1>SIRENKU</h1><p>Sistem Informasi Perencanaan dan Keuangan Terpadu</p>
  <ul><li>${ic("layers")}Perencanaan dan pagu anggaran</li><li>${ic("wallet")}Pembayaran dan bukti SPJ</li><li>${ic("target")}Capaian output kegiatan</li></ul></div>
  <div class="lf"><h2>Masuk ke SIRENKU</h2><div class="seg">${Object.entries(PORTAL).map(([k,v])=>`<button class="${k===portal?"on":""}" onclick="A.portal('${k}')">${ic(v.i)}${v.t}</button>`).join("")}</div><span class="mu">${pt.d}</span>
  ${portal==="pegawai"?`<label>Nama (khusus pendaftaran)<input id="nm" autocomplete="name"></label>`:""}
- <label>Email<input id="em" type="email" autocomplete="username"></label><label>Password<input id="pw" type="password" autocomplete="current-password"></label>
- <div style="display:flex;gap:8px"><button class="b" onclick="A.login()">Masuk sebagai ${pt.t}</button>${portal==="pegawai"?`<button class="b s" onclick="A.reg()">Daftar</button>`:""}</div><div class="neg">${err}</div></div></div>`}
+ <label>${portal==="pegawai"?"NIP atau email":"Email"}<input id="em" type="text" autocomplete="username"></label><label>Password<input id="pw" type="password" autocomplete="current-password"></label>
+ <div style="display:flex;gap:8px"><button class="b" onclick="A.login()">Masuk sebagai ${pt.t}</button>${portal==="pegawai"?`<button class="b s" onclick="A.reg()">Daftar</button>`:""}<button class="b s" onclick="A.lupa()">Lupa sandi</button></div><div class="neg">${err}</div></div></div>`}
  if(!me)return a.innerHTML=`<main><div class="card">Memuat profil… Jika terlalu lama, profil belum dibuat. <button class="b s" onclick="A.out()">Keluar</button><div class="neg">${err}</div></div></main>`;
  const tabs=[["dash","Dashboard",!isP()],["ajukan","Pengajuan",!isR("atasan")],["bayar","Pembayaran",isR("admin_tf","super_admin")],["catat","Pencatatan & Saldo",isR("admin_catat","super_admin")],
-  ["komp","Komponen & Pagu",isR("perencana","super_admin")],["output","Output",!isR("atasan")],["pantau","Pantau SPJ",isR("atasan","super_admin")],["kepeg","Kepegawaian",isR("super_admin")],["user","Pengguna",isR("super_admin")]].filter(t=>t[2]);
+  ["komp","Komponen & Pagu",isR("perencana","super_admin")],["output","Output",!isR("atasan")],["pantau","Pantau SPJ",isR("atasan","super_admin")],["kepeg","Kepegawaian",isR("super_admin")],["profil","Profil Saya",true],["user","Pengguna",isR("super_admin")]].filter(t=>t[2]);
  if(!tabs.find(t=>t[0]===tab))tab=tabs[0][0];
  const nf=notifs(),cur=tabs.find(t=>t[0]===tab);
  a.innerHTML=`<div class="shell"><aside><div class="br"><div class="em">${ic("landmark")}</div><div><b>SIRENKU</b><small>Perencanaan & Keuangan</small></div></div>
@@ -272,13 +272,20 @@ user(){const at=`<option value="">-</option>${U.filter(x=>["atasan","super_admin
  <td style="white-space:nowrap"><button class="b s" onclick="A.user('${u.id}')">Simpan</button> <button class="b s" title="Kirim email reset password" onclick="A.reset('${u.email}')">Reset sandi</button></td></tr>`).join("")}</table></div></div>`}
 ,kepeg(){return `${info?`<div class="n" style="background:#e6f6ee;border-color:#b6e3cb;color:#0c6847">${ic("check")}<span>${info}</span></div>`:""}
  <div class="card"><h3>Impor data kepegawaian dari Excel</h3>
- <p class="mu">Kolom wajib: <b>Nama Lengkap, NIP/NIPPPK, Status Pegawai, Satker</b>. Kolom opsional: Bagian, Nama Bank (BRI, BNI, BSI, MANDIRI, BCA, GOPAY, DANA, OVO, SHOPEEPAY, atau nama lain), No Rekening, Email. NIP yang sudah ada akan diperbarui. Satker harus salah satu dari: ${SLIST}. <b>Format kolom NIP dan No Rekening sebagai Teks</b> agar angka panjang tidak berubah.</p>
+ <p class="mu">Kolom yang diimpor hanya: <b>Nama Lengkap, NIP/NIPPPK, Status Pegawai, Satker</b>. Bagian, bank, rekening, dan email diisi sendiri oleh pegawai di menu Profil Saya. Pegawai masuk memakai NIP dan password awal <b>${INIT}</b>, lalu bisa menggantinya sendiri. NIP yang sudah ada akan diperbarui. Satker harus salah satu dari: ${SLIST}. <b>Format kolom NIP dan No Rekening sebagai Teks</b> agar angka panjang tidak berubah.</p>
  <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="b s" onclick="A.kpTpl()">Unduh template</button><input type="file" id="kf" accept=".xlsx,.xls,.csv"><button class="b" onclick="A.kpBaca()">Baca &amp; periksa</button></p>
  ${impK?`<p><b>${impK.ok.length}</b> baris siap disimpan${impK.bad.length?`, <b class="neg">${impK.bad.length}</b> baris bermasalah (dilewati)`:""}.</p>${impK.bad.slice(0,10).map(x=>`<div class="neg">${x}</div>`).join("")}${impK.ok.length?`<div class="tw"><table><tr><th class="l">Nama</th><th class="l">NIP/NIPPPK</th><th>Status</th><th>Satker</th></tr>${impK.ok.slice(0,5).map(x=>`<tr><td class="l">${x.nama}</td><td class="l">${x.nip}</td><td>${x.status}</td><td>${SN(x.satker)}</td></tr>`).join("")}</table></div><p><button class="b" onclick="A.kpSimpan()">Simpan ${impK.ok.length} data</button></p>`:""}`:""}</div>
  <div class="card"><h3>Data kepegawaian (${PG.length})</h3>
  <p><input placeholder="Cari nama, NIP, atau satker" style="width:100%;max-width:360px" oninput="const q=this.value.toLowerCase();document.querySelectorAll('#kt tr[data-s]').forEach(r=>r.style.display=r.dataset.s.includes(q)?'':'none')"></p>
- <div class="tw"><table id="kt"><tr><th class="l">Nama lengkap</th><th class="l">NIP/NIPPPK</th><th>Status pegawai</th><th>Satker</th><th>Bagian</th><th>Bank</th><th>No. rekening</th></tr>
- ${[...PG].sort((a,b)=>(a.nama||"").localeCompare(b.nama||"")).map(p=>`<tr data-s="${[p.nama,p.nip,SN(p.satker),p.status].join(" ").toLowerCase()}"><td class="l">${p.nama||""}</td><td class="l">${p.nip||""}</td><td>${p.status||"-"}</td><td>${SN(p.satker)||"-"}</td><td>${p.bagian||"-"}</td><td>${p.bank||"-"}</td><td>${p.rekening||"-"}</td></tr>`).join("")||'<tr><td class="l" colspan="7">Belum ada data. Impor dari Excel atau tambahkan lewat menu Pengguna.</td></tr>'}</table></div></div>`}
+ <div class="tw"><table id="kt"><tr><th class="l">Nama lengkap</th><th class="l">NIP/NIPPPK</th><th>Status pegawai</th><th>Satker</th><th>Bagian</th><th>Bank</th><th>No. rekening</th><th>Akun</th></tr>
+ ${[...PG].sort((a,b)=>(a.nama||"").localeCompare(b.nama||"")).map(p=>`<tr data-s="${[p.nama,p.nip,SN(p.satker),p.status].join(" ").toLowerCase()}"><td class="l">${p.nama||""}</td><td class="l">${p.nip||""}</td><td>${p.status||"-"}</td><td>${SN(p.satker)||"-"}</td><td>${p.bagian||"-"}</td><td>${p.bank||"-"}</td><td>${p.rekening||"-"}</td><td>${p.uid?"Aktif":"Belum masuk"}</td></tr>`).join("")||'<tr><td class="l" colspan="8">Belum ada data. Impor dari Excel atau tambahkan lewat menu Pengguna.</td></tr>'}</table></div></div>`}
+,profil(){const p=PG.find(x=>x.uid===me.id),bk=(p&&p.bank)||"",bi=BANK.includes(bk);return `${info?`<div class="n" style="background:#e6f6ee;border-color:#b6e3cb;color:#0c6847">${ic("check")}<span>${info}</span></div>`:""}
+ <div class="card"><h3>Data kepegawaian</h3>${p?`<div class="g"><label>Nama lengkap<input value="${p.nama||""}" disabled></label><label>NIP/NIPPPK<input value="${p.nip||""}" disabled></label><label>Status pegawai<input value="${p.status||""}" disabled></label><label>Satker<input value="${SN(p.satker)}" disabled></label>
+ <label>Bagian<input id="pf_bag" value="${p.bagian||""}" placeholder="mis. ADM, P3SPH, HUMAS"></label>
+ <label>Nama bank<select id="pf_bank" onchange="document.getElementById('pf_bankx').style.display=this.value==='LAINNYA'?'':'none'"><option value="">-</option>${BANK.map(b=>`<option ${bk===b?"selected":""}>${b}</option>`).join("")}<option value="LAINNYA" ${bk&&!bi?"selected":""}>LAINNYA (KETIK)</option></select><input id="pf_bankx" value="${bk&&!bi?bk:""}" placeholder="Ketik nama bank" style="margin-top:6px;${bk&&!bi?"":"display:none"}"></label>
+ <label>No. rekening<input id="pf_rek" inputmode="numeric" value="${p.rekening||""}"></label><label>Email aktif (untuk reset sandi)<input id="pf_em" type="email" value="${p.emailAktif||""}"></label></div>
+ <p class="mu">Nama, NIP, status, dan satker diatur admin kepegawaian. Bagian, bank, rekening, dan email aktif diisi sendiri.</p><p><button class="b" onclick="A.profilSimpan()">Simpan data</button></p>`:`<p class="mu">Data kepegawaian untuk akun ini belum tersedia.</p>`}</div>
+ <div class="card"><h3>Ganti password</h3><div class="g"><label>Password baru<input id="pf_pw1" type="password" autocomplete="new-password"></label><label>Ulangi password baru<input id="pf_pw2" type="password" autocomplete="new-password"></label></div><p><button class="b" onclick="A.sandi()">Ganti password</button></p><span class="mu">Password awal sama untuk semua pegawai, jadi segera ganti setelah masuk pertama kali. Jika lupa, isi Email aktif di atas agar bisa memakai Lupa sandi di halaman masuk.</span></div>`}
 };
 
 // ---------- aksi ----------
@@ -290,6 +297,16 @@ const kompres=f=>new Promise((ok,no)=>{if(!f||!f.type.startsWith("image/"))retur
   d.length>900000?no(Error("Foto terlalu besar, coba foto lain")):ok(d)};im.onerror=()=>no(Error("Gagal membaca foto"));im.src=URL.createObjectURL(f)});
 const up=async(kind,refId,f)=>{const d=await kompres(f);return (await addDoc(collection(db,"spjfoto"),{kind,refId,data:d,by:me.id,at:new Date().toISOString()})).id};
 const run=fn=>async(...a)=>{err="";try{await fn(...a)}catch(e){err=e.message}render()};
+const idn=v=>/^\d{8,}$/.test(v)?v+SYN:v;
+const masuk=async(v,pw)=>{const em=idn(v);try{return await signInWithEmailAndPassword(auth,em,pw)}catch(e){
+ if(em!==v&&pw===INIT&&["auth/invalid-credential","auth/user-not-found","auth/wrong-password"].includes(e.code)){
+  let c;try{c=await createUserWithEmailAndPassword(auth,em,INIT)}catch(e2){throw Error(e2.code==="auth/email-already-in-use"?"NIP atau password salah. Jika sudah mengganti password, pakai password baru Anda.":e2.message)}
+  try{const k=await getDoc(doc(db,"kepegawaian",v));if(!k.exists())throw Error("NIP tidak terdaftar. Hubungi admin kepegawaian.");const d=k.data();
+   await updateDoc(doc(db,"kepegawaian",v),{uid:c.user.uid});
+   await setDoc(doc(db,"users",c.user.uid),{nama:d.nama,email:em,role:"pegawai",atasan:"",nip:v,satker:d.satker||"",status:d.status||""})}
+  catch(e3){await deleteUser(c.user).catch(()=>{});await signOut(auth).catch(()=>{});throw e3}
+  return c}
+ throw Error(em!==v?"NIP atau password salah.":e.message)}};
 window.A={
  lihat:async id=>{const w=window.open("","_blank");try{const x=await getDoc(doc(db,"spjfoto",id));w.document.write(`<body style="margin:0;background:#000"><img src="${x.data().data}" style="max-width:100%;display:block;margin:auto">`)}catch(e){w.close();err=e.message;render()}},
  tambah:run(async()=>{info="";const v=i=>$("nu_"+i).value.trim(),f={nama:v("nama"),em:v("em").toLowerCase(),pw:$("nu_pw").value,role:$("nu_role").value,jab:$("nu_jab").value,sat:$("nu_sat").value,nip:v("nip"),bag:v("bag").toUpperCase(),bank:$("nu_bank").value==="LAINNYA"?v("bankx").toUpperCase():$("nu_bank").value,rek:v("rek").replace(/\s/g,""),at:$("nu_atasan").value,lk:v("lk").split(",").map(x=>x.trim().toUpperCase()).filter(Boolean)};
@@ -299,7 +316,7 @@ window.A={
   try{const c=await createUserWithEmailAndPassword(sa,f.em,f.pw);
    await setDoc(doc(getFirestore(sec),"users",c.user.uid),{nama:f.nama,email:f.em,role:"pegawai",atasan:""});
    await updateDoc(doc(db,"users",c.user.uid),{role:f.role,jabatan:f.jab,satker:f.sat,bagian:f.bag,atasan:f.at,lingkup:f.lk});
-   const ex=f.nip&&PG.find(p=>p.nip===f.nip);await setDoc(doc(db,"kepegawaian",ex?ex.id:c.user.uid),{uid:c.user.uid,nama:f.nama,email:f.em,nip:f.nip,satker:f.sat,bagian:f.bag,bank:f.bank,rekening:f.rek,at:new Date().toISOString()},{merge:true});
+   await setDoc(doc(db,"kepegawaian",f.nip||c.user.uid),{uid:c.user.uid,nama:f.nama,email:f.em,nip:f.nip,satker:f.sat,bagian:f.bag,bank:f.bank,rekening:f.rek,at:new Date().toISOString()},{merge:true});
    info=`Akun ${f.em} dibuat sebagai ${ROLES[f.role]}. Berikan email dan password sementara kepada yang bersangkutan.`}
   finally{await signOut(sa).catch(()=>{});deleteApp(sec).catch(()=>{})}}),
  reset:run(async e=>{await sendPasswordResetEmail(auth,e);info="Email reset password dikirim ke "+e+" (periksa juga folder spam)."}),
@@ -329,7 +346,15 @@ window.A={
  lv:i=>{fLv=+i;render()},fs:v=>{fSat=v;render()},
  portal:p=>{portal=p;err="";render()},
  go:t=>{tab=t;render()},
- kpTpl:()=>{const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Nama Lengkap","NIP/NIPPPK","Status Pegawai","Satker","Bagian","Nama Bank","No Rekening","Email"],["Contoh Pegawai","198501012010011001","PNS","KABUPATEN LINGGA","ADM","BRI","1234567890","pegawai@contoh.go.id"]]),"Kepegawaian");XLSX.writeFile(wb,"template-kepegawaian-sirenku.xlsx")},
+ lupa:run(async()=>{const v=$("em").value.trim();if(!v.includes("@"))throw Error("Untuk reset sandi, isi kolom di atas dengan email aktif Anda (yang didaftarkan di menu Profil Saya), lalu klik Lupa sandi.");await sendPasswordResetEmail(auth,v);err="Email reset sandi dikirim ke "+v+" (periksa juga folder spam)."}),
+ profilSimpan:run(async()=>{info="";const p=PG.find(x=>x.uid===me.id);if(!p)throw Error("Data kepegawaian Anda belum tersedia");const bk=$("pf_bank").value,d={bagian:$("pf_bag").value.trim().toUpperCase(),bank:bk==="LAINNYA"?$("pf_bankx").value.trim().toUpperCase():bk,rekening:$("pf_rek").value.replace(/\s/g,""),emailAktif:$("pf_em").value.trim().toLowerCase()};
+  if(bk==="LAINNYA"&&!d.bank)throw Error("Ketik nama bank pada kolom yang tersedia");if(d.rekening&&!/^\d{5,}$/.test(d.rekening))throw Error("No. rekening harus berupa angka");
+  await updateDoc(doc(db,"kepegawaian",p.id),d);info="Data tersimpan.";
+  if(d.emailAktif&&d.emailAktif!==p.emailAktif&&auth.currentUser.email!==d.emailAktif){await verifyBeforeUpdateEmail(auth.currentUser,d.emailAktif);info+=` Tautan verifikasi dikirim ke ${d.emailAktif}. Setelah diklik, masuklah memakai email tersebut.`}}),
+ sandi:run(async()=>{info="";const a=$("pf_pw1").value,b=$("pf_pw2").value;if(a.length<6)throw Error("Password baru minimal 6 karakter");if(a!==b)throw Error("Konfirmasi password tidak sama");if(a===INIT)throw Error("Password baru tidak boleh sama dengan password awal");
+  try{await updatePassword(auth.currentUser,a)}catch(e){throw Error(e.code==="auth/requires-recent-login"?"Demi keamanan, keluar lalu masuk lagi, kemudian ulangi ganti password.":e.message)}
+  info="Password berhasil diganti."}),
+ kpTpl:()=>{const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Nama Lengkap","NIP/NIPPPK","Status Pegawai","Satker"],["Contoh Pegawai","198501012010011001","PNS","KABUPATEN LINGGA"]]),"Kepegawaian");XLSX.writeFile(wb,"template-kepegawaian-sirenku.xlsx")},
  kpBaca:run(async()=>{info="";const f=$("kf").files[0];if(!f)throw Error("Pilih file Excel dulu");if(!window.XLSX)throw Error("Pustaka Excel gagal dimuat, periksa koneksi internet");
   const wb=XLSX.read(await f.arrayBuffer()),rs=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),nk=h=>String(h).toLowerCase().replace(/[^a-z0-9]/g,""),ok=[],bad=[],seen={};
   const nbank=v=>{const u=String(v||"").toUpperCase().replace(/^BANK\s+/,"").trim();return BANK.find(b=>b===u.replace(/\s/g,""))||u};
@@ -337,20 +362,20 @@ window.A={
   const KN=["nip","nipnippk","nipnipppk","nippk","nipppk"],KR=["norekening","nomorrekening","rekening","norek"];
   if(!rs.length)throw Error("File kosong");
   rs.forEach((r0,i)=>{const r={};for(const k in r0)r[nk(k)]=r0[k];const n=i+2,rw=(...ks)=>ks.map(k=>r[k]).find(v=>v!==undefined&&String(v).trim()!==""),g=(...ks)=>String(rw(...ks)??"").trim(),big=v=>typeof v==="number"&&String(Math.trunc(v)).length>15;
-   const d={nama:g("namalengkap","nama"),nip:g(...KN).replace(/\s/g,""),status:g("statuspegawai","status").toUpperCase(),satker:nsat(g("satker")),bagian:g("bagian").toUpperCase(),bank:nbank(g("namabank","bank")),rekening:g(...KR).replace(/\s/g,""),email:g("email").toLowerCase()};
+   const d={nama:g("namalengkap","nama"),nip:g(...KN).replace(/\s/g,""),status:g("statuspegawai","status").toUpperCase(),satker:nsat(g("satker"))};
    if(!d.nama&&!d.nip)return;
    if(!d.nama||!d.nip)return bad.push(`Baris ${n}: Nama Lengkap dan NIP/NIPPPK wajib diisi`);
-   if(big(rw(...KN))||big(rw(...KR)))return bad.push(`Baris ${n}: NIP/No Rekening terbaca sebagai angka dan bisa berubah; ubah kolomnya ke format Teks`);
+   if(big(rw(...KN)))return bad.push(`Baris ${n}: NIP/NIPPPK terbaca sebagai angka dan bisa berubah; ubah kolomnya ke format Teks`);
    if(!/^\d{8,}$/.test(d.nip))return bad.push(`Baris ${n}: NIP/NIPPPK harus berupa angka`);
    if(!d.status)return bad.push(`Baris ${n}: Status Pegawai wajib diisi`);
    if(!d.satker)return bad.push(`Baris ${n}: Satker "${g("satker")}" tidak dikenal (pilihan: ${SLIST})`);
    if(seen[d.nip])return bad.push(`Baris ${n}: NIP ${d.nip} ganda dengan baris ${seen[d.nip]}`);seen[d.nip]=n;ok.push(d)});
   impK={ok,bad}}),
  kpSimpan:run(async()=>{if(!impK||!impK.ok.length)return;const L=impK.ok,now=new Date().toISOString();
-  for(let i=0;i<L.length;i+=400){const b=writeBatch(db);L.slice(i,i+400).forEach(x=>{const ex=PG.find(p=>p.nip===x.nip),d={nama:x.nama,nip:x.nip,status:x.status,satker:x.satker,diImpor:now};["bagian","bank","rekening","email"].forEach(k=>{if(x[k])d[k]=x[k]});b.set(ex?doc(db,"kepegawaian",ex.id):doc(collection(db,"kepegawaian")),d,{merge:true})});await b.commit()}
+  for(let i=0;i<L.length;i+=400){const b=writeBatch(db);L.slice(i,i+400).forEach(x=>{const d={nama:x.nama,nip:x.nip,status:x.status,satker:x.satker,diImpor:now};b.set(doc(db,"kepegawaian",x.nip),d,{merge:true})});await b.commit()}
   info=`${L.length} data kepegawaian tersimpan.`;impK=null}),
  edit:id=>{editId=id;render()},
- login:run(async()=>{const c=await signInWithEmailAndPassword(auth,$("em").value,$("pw").value);
+ login:run(async()=>{const c=await masuk($("em").value.trim(),$("pw").value);
   const x=await getDoc(doc(db,"users",c.user.uid)),r=x.exists()?x.data().role:null;
   if(!PORTAL[portal].r.includes(r)){await signOut(auth);const k=Object.keys(PORTAL).find(k=>PORTAL[k].r.includes(r));
    throw Error(k?`Akun ini terdaftar sebagai ${ROLES[r]}. Silakan masuk lewat tab ${PORTAL[k].t}.`:"Profil akun tidak ditemukan.")}}),
