@@ -63,10 +63,11 @@ main{padding:16px}.m12{grid-template-columns:repeat(3,1fr)}.lb{padding:6vh 8%}.l
 <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
 </defs></svg>
 <div id="app"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {getFirestore,collection,doc,setDoc,addDoc,getDoc,updateDoc,onSnapshot,query,where,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,collection,doc,setDoc,addDoc,getDoc,updateDoc,writeBatch,onSnapshot,query,where,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ====== ISI DENGAN KONFIGURASI FIREBASE ANDA (Project settings > Your apps > Web) ======
 const firebaseConfig={apiKey:"AIzaSyDPrFOqEUKagrftLk4-4gZsb4eQQy96xb8",authDomain:"sirenku-e03be.firebaseapp.com",projectId:"sirenku-e03be",messagingSenderId:"410952267113",appId:"1:410952267113:web:3fa5318453657833e3b9f8"};
@@ -75,7 +76,7 @@ const firebaseConfig={apiKey:"AIzaSyDPrFOqEUKagrftLk4-4gZsb4eQQy96xb8",authDomai
 const fb=initializeApp(firebaseConfig),auth=getAuth(fb),db=getFirestore(fb);
 const BLN=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"],JENIS=["GU","UP","TUP","TU","LS"];
 const ROLES={super_admin:"Super Admin",atasan:"Atasan / Pimpinan",perencana:"Admin Perencana",admin_tf:"Admin TF",admin_catat:"Admin Catat",pegawai:"Pegawai"};
-let portal="pegawai",fSat="",fLv=0,me=null,tab="dash",U=[],K=[],KEU={},P=[],S={},unsubs=[],editId=null,err="";
+let portal="pegawai",imp=null,fSat="",fLv=0,me=null,tab="dash",U=[],K=[],KEU={},P=[],S={},unsubs=[],editId=null,err="";
 const $=id=>document.getElementById(id),rp=n=>"Rp "+Math.round(n||0).toLocaleString("id-ID"),num=v=>+v||0;
 const sum=a=>(a||[]).reduce((x,y)=>x+num(y),0),tw=(a,t)=>sum((a||[]).slice(t*3,t*3+3));
 const PORTAL={pegawai:{t:"Pegawai",i:"user",r:["pegawai","perencana","admin_tf","admin_catat"],d:"Untuk pegawai, Admin Perencana, Admin TF, dan Admin Catat."},
@@ -185,7 +186,15 @@ catat(){const l=P.filter(p=>p.status==="dibayar");
  ${JENIS.map(j=>{const s=S[j]||{};return `<tr><td>${j}</td><td><input type="number" id="sl${j}" value="${s.limit||""}"></td><td><input type="number" id="sk${j}" value="${s.ke||1}" style="width:60px"></td><td>${rp(terpakai(j))}</td><td>${rp((s.limit||0)-terpakai(j))}</td><td><button class="b s" onclick="A.saldo('${j}')">Simpan</button></td></tr>`}).join("")}</table></div></div>`},
 
 komp(){const k=K.find(x=>x.id===editId)||{},e=KEU[editId]||{};const m=(id,a)=>`<div class="m12">${BLN.map((b,i)=>`<label>${b}<input type="number" id="${id}${i}" value="${(a||[])[i]??""}"></label>`).join("")}</div>`;
- return `<div class="card"><h3>${editId?"Revisi":"Tambah"} Komponen (input awal & setiap revisi sesuai RAB/FA Detail 16 segmen SAKTI)</h3><div class="g">
+ const kt=x=>[x.satker,x.bagian,x.program,x.kegiatan,x.kro,x.ro,x.kode,x.subkomp,x.akun,x.detail].map(v=>String(v||"").trim().toLowerCase()).join("|");
+ const ip=imp?(imp.done!=null?`<p style="color:var(--g);font-weight:600">${ic("check")} ${imp.done} baris anggaran berhasil diimpor.</p>`:imp.prog!=null?`<p>Menyimpan… ${imp.prog} dari ${imp.ok.length} baris</p>`:
+  `<p><b>${imp.ok.length}</b> baris siap diimpor (${imp.ok.filter(x=>!x.exist).length} baru, ${imp.ok.filter(x=>x.exist).length} memperbarui baris yang sudah ada)${imp.bad.length?`, <span class="neg">${imp.bad.length} baris ditolak</span>`:""}.</p>
+  ${imp.bad.concat(imp.warn).slice(0,10).map(x=>`<div class="neg" style="font-size:12px">${x}</div>`).join("")}
+  ${imp.ok.length?`<div class="tw"><table><tr><th class="l">Satker | Bagian</th><th class="l">Komponen</th><th class="l">Akun</th><th class="l">Detail</th><th>Pagu</th><th>Status</th></tr>${imp.ok.slice(0,8).map(x=>`<tr><td class="l">${x.d.satker} | ${x.d.bagian}</td><td class="l">${x.d.kode} ${x.d.uraian}</td><td class="l">${x.d.akun}</td><td class="l">${x.d.detail}</td><td>${rp(x.pg)}</td><td>${x.exist?"perbarui":"baru"}</td></tr>`).join("")}</table></div>
+  <p class="mu">Menampilkan 8 baris pertama.</p><button class="b" onclick="A.impor()">Simpan ${imp.ok.length} baris ke database</button> `:""}<button class="b s" onclick="A.bi()">Batal</button>`):"";
+ return `<div class="card"><h3>Impor dari Excel</h3><p class="mu">Satu baris Excel = satu baris anggaran paling rinci. Baris dengan Satker, Bagian, Program sampai Detail yang sama akan diperbarui (revisi), bukan digandakan.</p>
+ <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="b s" onclick="A.tpl()">${ic("file")}Unduh template</button><input type="file" id="xf" accept=".xlsx,.xls,.csv"><button class="b" onclick="A.baca()">Baca file</button></div><div style="margin-top:12px">${ip}</div></div>
+ <div class="card"><h3>${editId?"Revisi":"Tambah"} Komponen (input awal & setiap revisi sesuai RAB/FA Detail 16 segmen SAKTI)</h3><div class="g">
  ${[["satker","Satker (PROV / nama kab/kota)"],["bagian","Bagian penanggung jawab (mis. ADM, P3SPH, HUMAS)"],["program","Program"],["kegiatan","Kegiatan"],["kro","KRO"],["ro","RO"],["kode","Kode komponen"],["uraian","Uraian komponen"],["subkomp","Sub komponen"],["akun","Akun belanja"],["detail","Detail"],["indikator","Indikator kinerja"],["satuan","Satuan"],["target","Target"]].map(([i,l])=>`<label>${l}<input id="k_${i}" value="${k[i]||""}"></label>`).join("")}
  <label>Pagu anggaran (Rp)<input id="k_pagu" type="number" value="${e.pagu||""}"></label>
  <label>Penanggung jawab<select id="k_pj"><option value="">-</option>${U.map(u=>`<option value="${u.id}" ${k.pj===u.id?"selected":""}>${u.nama}</option>`).join("")}</select></label></div>
@@ -225,6 +234,29 @@ const up=async(kind,refId,f)=>{const d=await kompres(f);return (await addDoc(col
 const run=fn=>async(...a)=>{err="";try{await fn(...a)}catch(e){err=e.message}render()};
 window.A={
  lihat:async id=>{const w=window.open("","_blank");try{const x=await getDoc(doc(db,"spjfoto",id));w.document.write(`<body style="margin:0;background:#000"><img src="${x.data().data}" style="max-width:100%;display:block;margin:auto">`)}catch(e){w.close();err=e.message;render()}},
+ tpl:()=>{const h=["Satker","Bagian","Program","Kegiatan","KRO","RO","Kode Komponen","Uraian Komponen","Sub Komponen","Akun Belanja","Detail","Pagu",...BLN.map(m=>"Rencana "+m),"Indikator","Satuan","Target","Email PJ"];
+  const ex=["PROV","P3SPH","Contoh Program","Contoh Kegiatan","QDB","QDB.001","051","Sosialisasi pengawasan","A. Persiapan","521211","Belanja bahan",6000000,...BLN.map((_,i)=>i<6?1000000:0),"Jumlah kegiatan","Kegiatan",12,"pegawai@contoh.go.id"];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([h,ex]),"Anggaran");XLSX.writeFile(wb,"template-impor-sirenku.xlsx")},
+ baca:run(async()=>{const f=$("xf").files[0];if(!f)throw Error("Pilih file Excel dulu");if(!window.XLSX)throw Error("Pustaka Excel gagal dimuat, periksa koneksi internet");
+  const wb=XLSX.read(await f.arrayBuffer()),rs=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),nk=h=>String(h).toLowerCase().replace(/[^a-z0-9]/g,"");
+  const kt=x=>[x.satker,x.bagian,x.program,x.kegiatan,x.kro,x.ro,x.kode,x.subkomp,x.akun,x.detail].map(v=>String(v||"").trim().toLowerCase()).join("|");
+  const rp0=v=>typeof v==="number"?v:num(String(v||"").replace(/[^\d-]/g,"")),ok=[],bad=[],warn=[],seen={};
+  rs.forEach((r0,i)=>{const r={};for(const k in r0)r[nk(k)]=r0[k];const g=(...ks)=>{for(const k of ks)if(r[k]!==undefined&&String(r[k]).trim()!=="")return String(r[k]).trim();return""};
+   const d={satker:g("satker").toUpperCase(),bagian:g("bagian").toUpperCase(),program:g("program"),kegiatan:g("kegiatan"),kro:g("kro"),ro:g("ro"),kode:g("kodekomponen","kode","komponen"),uraian:g("uraiankomponen","uraian"),
+    subkomp:g("subkomponen","subkomp"),akun:g("akunbelanja","akun"),detail:g("detail"),indikator:g("indikator"),satuan:g("satuan"),target:g("target")},n=i+2;
+   if(!d.satker||!d.bagian||!d.kode||!d.uraian)return bad.push(`Baris ${n}: Satker, Bagian, Kode Komponen, dan Uraian Komponen wajib diisi`);
+   if(r.pagu===""||r.pagu===undefined||isNaN(rp0(r.pagu)))return bad.push(`Baris ${n}: Pagu kosong atau bukan angka`);
+   const key=kt(d);if(seen[key])return bad.push(`Baris ${n}: sama dengan baris ${seen[key]} (duplikat)`);seen[key]=n;
+   const em=g("emailpj","pj").toLowerCase(),pj=em?(U.find(u=>(u.email||"").toLowerCase()===em)||{}).id||"":"";if(em&&!pj)warn.push(`Baris ${n}: email PJ ${em} belum terdaftar (PJ dikosongkan)`);
+   d.pj=pj;ok.push({d,pg:rp0(r.pagu),rc:BLN.map(m=>rp0(r["rencana"+m.toLowerCase()]??r[m.toLowerCase()])),exist:(K.find(k=>kt(k)===key)||{}).id})});
+  imp={ok,bad,warn}}),
+ impor:run(async()=>{if(!imp||!imp.ok.length)return;const L=imp.ok;imp.prog=0;let n=0;
+  for(let i=0;i<L.length;i+=8){const b=writeBatch(db);L.slice(i,i+8).forEach(x=>{const d={...x.d,kunci:x.d.satker+"|"+x.d.bagian},ref=x.exist?doc(db,"komponen",x.exist):doc(collection(db,"komponen"));
+    if(x.exist)b.update(ref,d);else b.set(ref,{...d,realOutput:[],rencanaOutput:[]});
+    b.set(doc(db,"keu",ref.id),{kunci:d.kunci,pagu:x.pg,rencana:x.rc,revisiOleh:me.id,revisiAt:new Date().toISOString()})});
+   await b.commit();n=Math.min(L.length,i+8);imp.prog=n;render()}
+  imp={done:L.length}}),
+ bi:()=>{imp=null;render()},
  lv:i=>{fLv=+i;render()},fs:v=>{fSat=v;render()},
  portal:p=>{portal=p;err="";render()},
  go:t=>{tab=t;render()},edit:id=>{editId=id;render()},
