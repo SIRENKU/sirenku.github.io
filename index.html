@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SIRENKU</title>
+<style>
+:root{--bg:#f6f7f9;--c:#fff;--t:#1d2433;--m:#64708a;--p:#0b5cab;--b:#dde2ea;--r:#c0392b;--g:#1e8e5a}
+@media(prefers-color-scheme:dark){:root{--bg:#12161e;--c:#1b2130;--t:#e8ecf4;--m:#97a2ba;--p:#5aa2ee;--b:#2d3548;--r:#ef7b6e;--g:#53c68c}}
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;background:var(--bg);color:var(--t)}
+header{display:flex;gap:12px;align-items:center;padding:10px 16px;background:var(--c);border-bottom:1px solid var(--b);flex-wrap:wrap}
+header b{font-size:18px;color:var(--p)}nav{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+nav button{background:none;border:0;padding:6px 10px;border-radius:6px;color:var(--m);cursor:pointer}
+nav button.on{background:var(--p);color:#fff}main{padding:16px;max-width:1300px;margin:auto}
+.card{background:var(--c);border:1px solid var(--b);border-radius:10px;padding:14px;margin-bottom:14px}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{border:1px solid var(--b);padding:5px 7px;text-align:right;white-space:nowrap}th{background:var(--bg)}td.l,th.l{text-align:left;white-space:normal}
+input,select,textarea{padding:6px;border:1px solid var(--b);border-radius:6px;background:var(--bg);color:var(--t);font:inherit;max-width:100%}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.g label{display:flex;flex-direction:column;gap:3px;color:var(--m);font-size:12px}
+.m12{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.m12 input{width:100%}
+button.b{background:var(--p);color:#fff;border:0;padding:7px 12px;border-radius:6px;cursor:pointer}button.s{background:var(--bg);color:var(--t);border:1px solid var(--b)}
+.n{background:#fff4d6;color:#5a4300;border-left:4px solid #e0a800;padding:8px 12px;margin-bottom:6px;border-radius:6px}
+.tag{padding:2px 8px;border-radius:10px;background:var(--bg);font-size:11px}.bar{height:8px;background:var(--b);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--g)}
+.neg{color:var(--r)}h3{margin:0 0 10px}#login{max-width:340px;margin:12vh auto}
+</style></head><body>
+<div id="app"></div>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,doc,setDoc,addDoc,getDoc,updateDoc,onSnapshot,query,where,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// ====== ISI DENGAN KONFIGURASI FIREBASE ANDA (Project settings > Your apps > Web) ======
+const firebaseConfig={apiKey:"AIzaSyDPrFOqEUKagrftLk4-4gZsb4eQQy96xb8",authDomain:"sirenku-e03be.firebaseapp.com",projectId:"sirenku-e03be",messagingSenderId:"410952267113",appId:"1:410952267113:web:3fa5318453657833e3b9f8"};
+// =======================================================================================
+
+const fb=initializeApp(firebaseConfig),auth=getAuth(fb),db=getFirestore(fb);
+const BLN=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"],JENIS=["GU","UP","TUP","TU","LS"];
+const ROLES={super_admin:"Super Admin",perencana:"Admin Perencana",admin_tf:"Admin TF",admin_catat:"Admin Catat",pegawai:"Pegawai"};
+let me=null,tab="dash",U=[],K=[],KEU={},P=[],S={},unsubs=[],editId=null,err="";
+const $=id=>document.getElementById(id),rp=n=>"Rp "+Math.round(n||0).toLocaleString("id-ID"),num=v=>+v||0;
+const sum=a=>(a||[]).reduce((x,y)=>x+num(y),0),tw=(a,t)=>sum((a||[]).slice(t*3,t*3+3));
+const isR=(...r)=>r.includes(me?.role),isP=()=>me?.role==="pegawai";
+const nm=uid=>U.find(u=>u.id===uid)?.nama||"-";
+
+onAuthStateChanged(auth,u=>{unsubs.forEach(f=>f());unsubs=[];if(!u){me=null;return render()}
+ const sub=(q,fn)=>unsubs.push(onSnapshot(q,s=>{fn(s);render()},e=>{err=e.message;render()}));
+ sub(collection(db,"users"),s=>{U=s.docs.map(d=>({id:d.id,...d.data()}));me=U.find(x=>x.id===u.uid)||null});
+ sub(collection(db,"komponen"),s=>K=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.kode||"").localeCompare(b.kode||"")));
+ sub(collection(db,"saldo"),s=>{S={};s.docs.forEach(d=>S[d.id]=d.data())});
+ sub(collection(db,"keu"),s=>{KEU={};s.docs.forEach(d=>KEU[d.id]=d.data())});
+ // pegawai hanya boleh query pengajuan miliknya (sesuai rules)
+ sub(query(collection(db,"pengajuan"),where("pengaju","==",u.uid)),s=>P=s.docs.map(d=>({id:d.id,...d.data()})));
+ unsubs.push(()=>{});
+ // admin/atasan memuat semua pengajuan setelah role diketahui
+ const w=setInterval(()=>{if(me&&!isP()){clearInterval(w);unsubs.push(onSnapshot(collection(db,"pengajuan"),s=>{P=s.docs.map(d=>({id:d.id,...d.data()}));render()}))}},400);
+ unsubs.push(()=>clearInterval(w));
+});
+
+// ---------- perhitungan ----------
+const real=k=>{const a=Array(12).fill(0);P.filter(p=>p.komponenId===k&&p.status==="tercatat").forEach(p=>a[new Date(p.tglBayar).getMonth()]+=num(p.jumlah));return a};
+const terpakai=j=>P.filter(p=>p.status==="tercatat"&&p.jenis===j&&p.ke==S[j]?.ke).reduce((a,p)=>a+num(p.jumlah),0);
+const umur=p=>p.tglBayar?(Date.now()-new Date(p.tglBayar))/864e5:0;
+const telat=uid=>P.some(p=>p.pengaju===uid&&["dibayar","tercatat"].includes(p.status)&&!p.spjId&&umur(p)>=7);
+function notifs(){const n=[];
+ P.forEach(p=>{if(["dibayar","tercatat"].includes(p.status)&&!p.spjId){const a=umur(p);
+  if(p.pengaju===me.id)n.push(`Upload bukti SPJ "${p.uraian}" (sisa ${Math.max(0,7-Math.floor(a))} hari)${a>=7?" — TERLAMBAT: atasan telah diberi tahu & pengajuan berikutnya Anda terhambat":""}`);
+  if(a>=7&&p.atasan===me.id)n.push(`${p.nama} belum upload SPJ "${p.uraian}" lebih dari 1 minggu; ini menghambat pengajuan GU/UP/TUP/TU/LS berikutnya`)}});
+ if(isR("super_admin","admin_catat","admin_tf"))JENIS.forEach(j=>{const s=S[j];if(s?.limit&&(s.limit-terpakai(j))/s.limit<.2)n.push(`Saldo ${j} ke-${s.ke} menipis (sisa ${rp(s.limit-terpakai(j))}). Ajukan ${j} berikutnya.`)});
+ if(isR("super_admin","perencana"))K.forEach(k=>{const pg=KEU[k.id]?.pagu;if(pg&&sum(real(k.id))/pg>=.75&&!k.reqSent)n.push(`Realisasi komponen ${k.kode} ≥75%. Kirim permintaan input capaian output di tab Output.`)});
+ K.filter(k=>k.pj===me.id&&k.reqSent&&!k.outputId&&!k.kendala).forEach(k=>n.push(`Mohon input realisasi output & upload bukti untuk komponen ${k.kode}, atau isi kendala + target penyelesaian.`));
+ return n}
+
+// ---------- tampilan ----------
+function render(){const a=$("app");
+ if(!auth.currentUser)return a.innerHTML=`<div id="login" class="card"><h3>SIRENKU</h3><p style="color:var(--m)">Sistem Informasi Perencanaan dan Keuangan Terpadu</p>
+ <div class="g" style="grid-template-columns:1fr"><label>Nama (untuk daftar)<input id="nm"></label><label>Email<input id="em" type="email"></label><label>Password<input id="pw" type="password"></label></div>
+ <p><button class="b" onclick="A.login()">Masuk</button> <button class="b s" onclick="A.reg()">Daftar</button></p><div class="neg">${err}</div></div>`;
+ if(!me)return a.innerHTML=`<main><div class="card">Memuat profil… Jika terlalu lama, profil belum dibuat. <button class="b s" onclick="A.out()">Keluar</button><div class="neg">${err}</div></div></main>`;
+ const tabs=[["dash","Dashboard",!isP()],["ajukan","Pengajuan",1],["bayar","Bayar (TF)",isR("admin_tf","super_admin")],["catat","Catat & Saldo",isR("admin_catat","super_admin")],
+  ["komp","Komponen & Pagu",isR("perencana","super_admin")],["output","Output",1],["user","Pengguna",isR("super_admin")]].filter(t=>t[2]);
+ if(!tabs.find(t=>t[0]===tab))tab=tabs[0][0];
+ const nf=notifs();
+ a.innerHTML=`<header><b>SIRENKU</b><nav>${tabs.map(t=>`<button class="${t[0]===tab?"on":""}" onclick="A.go('${t[0]}')">${t[1]}</button>`).join("")}</nav>
+ <span style="color:var(--m)">${me.nama} · ${ROLES[me.role]}</span><button class="b s" onclick="A.out()">Keluar</button></header>
+ <main>${nf.map(x=>`<div class="n">🔔 ${x}</div>`).join("")}<div class="neg">${err}</div>${V[tab]()}</main>`}
+
+const V={
+dash(){const tot={p:0,r:0};
+ const rows=K.map(k=>{const pg=KEU[k.id]?.pagu||0,pl=KEU[k.id]?.rencana||[],rl=real(k.id),R=sum(rl);tot.p+=pg;tot.r+=R;
+  const T=[0,1,2,3];return `<tr><td class="l">${k.kode}</td><td class="l">${k.uraian}<br><small style="color:var(--m)">${k.program||""} / ${k.kegiatan||""} / KRO ${k.kro||""} / RO ${k.ro||""}</small></td><td>${rp(pg)}</td>
+  <td class="l">${k.indikator||""} (${k.target||""} ${k.satuan||""})</td>${T.map(t=>`<td>${rp(tw(pl,t))}</td>`).join("")}${T.map(t=>`<td>${rp(tw(rl,t))}</td>`).join("")}
+  ${T.map(t=>{const d=tw(pl,t)-tw(rl,t);return `<td class="${d<0?"neg":""}">${rp(d)}</td>`}).join("")}<td>${rp(sum(pl)-R)}</td>
+  <td style="min-width:90px">${pg?(R/pg*100).toFixed(1):0}%<div class="bar"><i style="width:${Math.min(100,pg?R/pg*100:0)}%"></i></div></td>
+  <td>${[0,1,2,3].map(t=>tw(k.rencanaOutput,t)).join(" / ")}</td><td>${[0,1,2,3].map(t=>tw(k.realOutput,t)).join(" / ")}</td></tr>`}).join("");
+ return `<div class="card"><h3>Capaian Kinerja & Anggaran</h3><p>Total pagu <b>${rp(tot.p)}</b> · Realisasi <b>${rp(tot.r)}</b> (${tot.p?(tot.r/tot.p*100).toFixed(1):0}%)</p>
+ <div class="tw"><table><tr><th rowspan=2>Kode</th><th rowspan=2>Uraian</th><th rowspan=2>Pagu</th><th rowspan=2>Indikator (Target)</th><th colspan=4>Rencana Penarikan</th><th colspan=4>Realisasi</th><th colspan=4>Selisih</th><th rowspan=2>Selisih Total</th><th rowspan=2>Capaian</th><th rowspan=2>Rencana Output TW1/2/3/4</th><th rowspan=2>Realisasi Output TW1/2/3/4</th></tr>
+ <tr>${"<th>TW1</th><th>TW2</th><th>TW3</th><th>TW4</th>".repeat(3)}</tr>${rows||'<tr><td colspan=20>Belum ada komponen</td></tr>'}</table></div></div>
+ <div class="card"><h3>Transaksi per jenis pembayaran</h3>${JENIS.map(j=>{const l=P.filter(p=>p.status==="tercatat"&&p.jenis===j);const ks=[...new Set(l.map(p=>p.ke))].sort();
+  return `<p><b>${j}</b>: ${ks.length?ks.map(k=>`ke-${k}: ${l.filter(p=>p.ke==k).length} trx / ${rp(sum(l.filter(p=>p.ke==k).map(p=>p.jumlah)))}`).join(" · "):"-"}</p>`}).join("")}</div>`},
+
+ajukan(){const mine=P.filter(p=>p.pengaju===me.id);
+ return `<div class="card"><h3>Ajukan Pembayaran</h3>${telat(me.id)?`<p class="neg">Pengajuan baru diblokir: ada bukti SPJ yang belum diupload lebih dari 1 minggu.</p>`:`<div class="g">
+ <label>Komponen<select id="pk">${K.map(k=>`<option value="${k.id}">${k.kode} - ${k.uraian}</option>`).join("")}</select></label>
+ <label>Jumlah (Rp)<input id="pj" type="number"></label><label>Uraian kebutuhan<input id="pu"></label></div><p><button class="b" onclick="A.ajukan()">Kirim pengajuan</button></p>`}</div>
+ <div class="card"><h3>Pengajuan Saya</h3><div class="tw"><table><tr><th class="l">Uraian</th><th>Jumlah</th><th>Status</th><th>Jenis</th><th>Bukti SPJ (maks 1 minggu setelah dibayar)</th></tr>
+ ${mine.map(p=>`<tr><td class="l">${p.uraian}</td><td>${rp(p.jumlah)}</td><td><span class="tag">${p.status}</span> ${p.tglBayar||""}</td><td>${p.jenis?p.jenis+" ke-"+p.ke:"-"}</td>
+ <td class="l">${p.spjId?`<a href="#" onclick="A.lihat('${p.spjId}');return false">Lihat SPJ</a>`:["dibayar","tercatat"].includes(p.status)?`<input type="file" id="f${p.id}" accept="image/*" capture="environment"> <button class="b" onclick="A.spj('${p.id}')">Upload</button>`:"-"}</td></tr>`).join("")}</table></div>
+ <small style="color:var(--m)">Gunakan foto berstempel waktu (timestamp) sebagai bukti SPJ.</small></div>`},
+
+bayar(){const l=P.filter(p=>p.status==="diajukan");
+ return `<div class="card"><h3>Pengajuan menunggu pembayaran</h3><div class="tw"><table><tr><th class="l">Pengaju</th><th class="l">Uraian</th><th>Jumlah</th><th>Tgl bayar</th><th></th></tr>
+ ${l.map(p=>`<tr><td class="l">${p.nama}</td><td class="l">${p.uraian}</td><td>${rp(p.jumlah)}</td><td><input type="date" id="t${p.id}" value="${new Date().toISOString().slice(0,10)}"></td><td><button class="b" onclick="A.bayar('${p.id}')">Tandai dibayar</button></td></tr>`).join("")||'<tr><td colspan=5>Tidak ada</td></tr>'}</table></div></div>`},
+
+catat(){const l=P.filter(p=>p.status==="dibayar");
+ return `<div class="card"><h3>Catat jenis pembayaran</h3><div class="tw"><table><tr><th class="l">Pengaju</th><th class="l">Uraian</th><th>Jumlah</th><th>Jenis</th><th>Ke-</th><th></th></tr>
+ ${l.map(p=>`<tr><td class="l">${p.nama}</td><td class="l">${p.uraian}</td><td>${rp(p.jumlah)}</td><td><select id="j${p.id}">${JENIS.map(j=>`<option>${j}</option>`)}</select></td><td><input type="number" id="e${p.id}" value="1" style="width:60px"></td><td><button class="b" onclick="A.catat('${p.id}')">Catat</button></td></tr>`).join("")||'<tr><td colspan=6>Tidak ada</td></tr>'}</table></div></div>
+ <div class="card"><h3>Saldo GU/UP/TUP/TU/LS (notifikasi saat sisa &lt; 20%)</h3><div class="tw"><table><tr><th>Jenis</th><th>Plafon (Rp)</th><th>Ke-</th><th>Terpakai</th><th>Sisa</th><th></th></tr>
+ ${JENIS.map(j=>{const s=S[j]||{};return `<tr><td>${j}</td><td><input type="number" id="sl${j}" value="${s.limit||""}"></td><td><input type="number" id="sk${j}" value="${s.ke||1}" style="width:60px"></td><td>${rp(terpakai(j))}</td><td>${rp((s.limit||0)-terpakai(j))}</td><td><button class="b s" onclick="A.saldo('${j}')">Simpan</button></td></tr>`}).join("")}</table></div></div>`},
+
+komp(){const k=K.find(x=>x.id===editId)||{},e=KEU[editId]||{};const m=(id,a)=>`<div class="m12">${BLN.map((b,i)=>`<label>${b}<input type="number" id="${id}${i}" value="${(a||[])[i]??""}"></label>`).join("")}</div>`;
+ return `<div class="card"><h3>${editId?"Revisi":"Tambah"} Komponen (input awal & setiap revisi sesuai RAB/FA Detail 16 segmen SAKTI)</h3><div class="g">
+ ${[["program","Program"],["kegiatan","Kegiatan"],["kro","KRO"],["ro","RO"],["kode","Kode komponen"],["uraian","Uraian"],["indikator","Indikator kinerja"],["satuan","Satuan"],["target","Target"]].map(([i,l])=>`<label>${l}<input id="k_${i}" value="${k[i]||""}"></label>`).join("")}
+ <label>Pagu anggaran (Rp)<input id="k_pagu" type="number" value="${e.pagu||""}"></label>
+ <label>Penanggung jawab<select id="k_pj"><option value="">-</option>${U.map(u=>`<option value="${u.id}" ${k.pj===u.id?"selected":""}>${u.nama}</option>`).join("")}</select></label></div>
+ <p>Rencana penarikan anggaran per bulan (Rp)</p>${m("rp",e.rencana)}<p>Rencana capaian output per bulan</p>${m("ro",k.rencanaOutput)}
+ <p><button class="b" onclick="A.simpanK()">Simpan</button> ${editId?`<button class="b s" onclick="A.edit(null)">Batal</button>`:""}</p></div>
+ <div class="card"><div class="tw"><table><tr><th>Kode</th><th class="l">Uraian</th><th>Pagu</th><th class="l">PJ</th><th></th></tr>${K.map(x=>`<tr><td>${x.kode}</td><td class="l">${x.uraian}</td><td>${rp(KEU[x.id]?.pagu)}</td><td class="l">${nm(x.pj)}</td><td><button class="b s" onclick="A.edit('${x.id}')">Revisi</button></td></tr>`).join("")}</table></div></div>`},
+
+output(){const l=K.filter(k=>isR("perencana","super_admin")||k.pj===me.id);
+ return l.map(k=>{const pg=KEU[k.id]?.pagu,pct=pg?sum(real(k.id))/pg*100:null;const canEdit=k.pj===me.id||isR("super_admin");
+  return `<div class="card"><h3>${k.kode} - ${k.uraian}</h3><p>PJ: ${nm(k.pj)} ${pct!=null?`· Realisasi anggaran ${pct.toFixed(1)}%`:""} ${k.reqSent?'<span class="tag">permintaan terkirim</span>':""}
+  ${isR("perencana","super_admin")&&pct>=75&&!k.reqSent?`<button class="b" onclick="A.req('${k.id}')">Kirim permintaan input capaian output</button>`:""}</p>
+  ${canEdit?`<p>Realisasi capaian output per bulan</p><div class="m12">${BLN.map((b,i)=>`<label>${b}<input type="number" id="ro_${k.id}_${i}" value="${(k.realOutput||[])[i]??""}"></label>`).join("")}</div>
+  <div class="g" style="margin-top:8px"><label>Upload bukti output<input type="file" id="of_${k.id}" accept="image/*"></label><label>Kendala (wajib bila belum ada output)<input id="kd_${k.id}" value="${k.kendala||""}"></label><label>Target penyelesaian<input type="date" id="ts_${k.id}" value="${k.targetSelesai||""}"></label></div>
+  <p><button class="b" onclick="A.out2('${k.id}')">Simpan output</button> ${k.outputId?`<a href="#" onclick="A.lihat('${k.outputId}');return false">Bukti output</a>`:""}</p>`:`<p>Realisasi output: ${(k.realOutput||[]).map(num).join(", ")||"-"}</p>`}</div>`}).join("")||'<div class="card">Tidak ada komponen yang menjadi tanggung jawab Anda.</div>'},
+
+user(){return `<div class="card"><h3>Pengguna & Hak Akses</h3><div class="tw"><table><tr><th class="l">Nama</th><th class="l">Email</th><th>Role</th><th>Atasan</th><th></th></tr>
+ ${U.map(u=>`<tr><td class="l">${u.nama}</td><td class="l">${u.email}</td><td><select id="r${u.id}">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}" ${u.role===k?"selected":""}>${v}</option>`).join("")}</select></td>
+ <td><select id="a${u.id}"><option value="">-</option>${U.filter(x=>x.id!==u.id).map(x=>`<option value="${x.id}" ${u.atasan===x.id?"selected":""}>${x.nama}</option>`).join("")}</select></td><td><button class="b s" onclick="A.user('${u.id}')">Simpan</button></td></tr>`).join("")}</table></div></div>`}
+};
+
+// ---------- aksi ----------
+const kompres=f=>new Promise((ok,no)=>{if(!f||!f.type.startsWith("image/"))return no(Error("Pilih file foto (JPG/PNG)"));const im=new Image();
+ im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+  const x=c.getContext("2d");x.drawImage(im,0,0,c.width,c.height);const fs=Math.max(14,Math.round(c.width/40)),t=new Date().toLocaleString("id-ID")+" · "+me.nama;
+  x.font=fs+"px sans-serif";x.fillStyle="rgba(0,0,0,.6)";x.fillRect(0,c.height-fs-10,x.measureText(t).width+12,fs+10);x.fillStyle="#fff";x.fillText(t,6,c.height-8);
+  let q=.6,d=c.toDataURL("image/jpeg",q);while(d.length>700000&&q>.2){q-=.1;d=c.toDataURL("image/jpeg",q)}
+  d.length>900000?no(Error("Foto terlalu besar, coba foto lain")):ok(d)};im.onerror=()=>no(Error("Gagal membaca foto"));im.src=URL.createObjectURL(f)});
+const up=async(kind,refId,f)=>{const d=await kompres(f);return (await addDoc(collection(db,"spjfoto"),{kind,refId,data:d,by:me.id,at:new Date().toISOString()})).id};
+const run=fn=>async(...a)=>{err="";try{await fn(...a)}catch(e){err=e.message}render()};
+window.A={
+ lihat:async id=>{const w=window.open("","_blank");try{const x=await getDoc(doc(db,"spjfoto",id));w.document.write(`<body style="margin:0;background:#000"><img src="${x.data().data}" style="max-width:100%;display:block;margin:auto">`)}catch(e){w.close();err=e.message;render()}},
+ go:t=>{tab=t;render()},edit:id=>{editId=id;render()},
+ login:run(()=>signInWithEmailAndPassword(auth,$("em").value,$("pw").value)),
+ reg:run(async()=>{const nama=$("nm").value||$("em").value,c=await createUserWithEmailAndPassword(auth,$("em").value,$("pw").value);
+  await setDoc(doc(db,"users",c.user.uid),{nama,email:$("em").value,role:"pegawai",atasan:""})}),
+ out:()=>signOut(auth),
+ ajukan:run(async()=>{if(telat(me.id))throw Error("Upload SPJ yang tertunggak dahulu");const j=num($("pj").value);if(!j||!$("pk").value)throw Error("Lengkapi data");
+  await addDoc(collection(db,"pengajuan"),{komponenId:$("pk").value,jumlah:j,uraian:$("pu").value,pengaju:me.id,nama:me.nama,atasan:me.atasan||"",status:"diajukan",dibuat:serverTimestamp()})}),
+ bayar:run(id=>updateDoc(doc(db,"pengajuan",id),{status:"dibayar",tglBayar:$("t"+id).value})),
+ catat:run(id=>updateDoc(doc(db,"pengajuan",id),{status:"tercatat",jenis:$("j"+id).value,ke:num($("e"+id).value)})),
+ saldo:run(j=>setDoc(doc(db,"saldo",j),{limit:num($("sl"+j).value),ke:num($("sk"+j).value)})),
+ spj:run(async id=>{const f=$("f"+id).files[0];if(!f)throw Error("Pilih file bukti SPJ");await updateDoc(doc(db,"pengajuan",id),{spjId:await up("spj",id,f),spjAt:new Date().toISOString()})}),
+ simpanK:run(async()=>{const g=i=>$("k_"+i).value,a=p=>BLN.map((_,i)=>num($(p+i).value));
+  const d={program:g("program"),kegiatan:g("kegiatan"),kro:g("kro"),ro:g("ro"),kode:g("kode"),uraian:g("uraian"),indikator:g("indikator"),satuan:g("satuan"),target:g("target"),pj:g("pj"),rencanaOutput:a("ro")};
+  let id=editId;if(id)await updateDoc(doc(db,"komponen",id),d);else id=(await addDoc(collection(db,"komponen"),{...d,realOutput:[]})).id;
+  await setDoc(doc(db,"keu",id),{pagu:num(g("pagu")),rencana:a("rp"),revisiOleh:me.id,revisiAt:new Date().toISOString()});editId=null}),
+ req:run(id=>updateDoc(doc(db,"komponen",id),{reqSent:true})),
+ out2:run(async id=>{const d={realOutput:BLN.map((_,i)=>num($(`ro_${id}_${i}`).value)),kendala:$("kd_"+id).value,targetSelesai:$("ts_"+id).value};
+  const f=$("of_"+id).files[0];if(f)d.outputId=await up("output",id,f);
+  if(!f&&!K.find(k=>k.id===id).outputId&&(!d.kendala||!d.targetSelesai))throw Error("Belum ada bukti output: isi kendala dan target penyelesaian");
+  await updateDoc(doc(db,"komponen",id),d)}),
+ user:run(id=>updateDoc(doc(db,"users",id),{role:$("r"+id).value,atasan:$("a"+id).value}))
+};
+render();
+</script></body></html>
