@@ -65,8 +65,8 @@ main{padding:16px}.m12{grid-template-columns:repeat(3,1fr)}.lb{padding:6vh 8%}.l
 <div id="app"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script type="module">
-import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {initializeApp,deleteApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {getFirestore,collection,doc,setDoc,addDoc,getDoc,updateDoc,writeBatch,onSnapshot,query,where,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ====== ISI DENGAN KONFIGURASI FIREBASE ANDA (Project settings > Your apps > Web) ======
@@ -76,7 +76,7 @@ const firebaseConfig={apiKey:"AIzaSyDPrFOqEUKagrftLk4-4gZsb4eQQy96xb8",authDomai
 const fb=initializeApp(firebaseConfig),auth=getAuth(fb),db=getFirestore(fb);
 const BLN=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"],JENIS=["GU","UP","TUP","TU","LS"];
 const ROLES={super_admin:"Super Admin",atasan:"Atasan / Pimpinan",perencana:"Admin Perencana",admin_tf:"Admin TF",admin_catat:"Admin Catat",pegawai:"Pegawai"};
-let portal="pegawai",imp=null,fSat="",fLv=0,me=null,tab="dash",U=[],K=[],KEU={},P=[],S={},unsubs=[],editId=null,err="";
+let portal="pegawai",info="",imp=null,fSat="",fLv=0,me=null,tab="dash",U=[],K=[],KEU={},P=[],S={},unsubs=[],editId=null,err="";
 const $=id=>document.getElementById(id),rp=n=>"Rp "+Math.round(n||0).toLocaleString("id-ID"),num=v=>+v||0;
 const sum=a=>(a||[]).reduce((x,y)=>x+num(y),0),tw=(a,t)=>sum((a||[]).slice(t*3,t*3+3));
 const PORTAL={pegawai:{t:"Pegawai",i:"user",r:["pegawai","perencana","admin_tf","admin_catat"],d:"Untuk pegawai, Admin Perencana, Admin TF, dan Admin Catat."},
@@ -210,7 +210,16 @@ output(){const l=K.filter(k=>isR("perencana","super_admin")||k.pj===me.id);
   <div class="g" style="margin-top:8px"><label>Upload bukti output<input type="file" id="of_${k.id}" accept="image/*"></label><label>Kendala (wajib bila belum ada output)<input id="kd_${k.id}" value="${k.kendala||""}"></label><label>Target penyelesaian<input type="date" id="ts_${k.id}" value="${k.targetSelesai||""}"></label></div>
   <p><button class="b" onclick="A.out2('${k.id}')">Simpan output</button> ${k.outputId?`<a href="#" onclick="A.lihat('${k.outputId}');return false">Bukti output</a>`:""}</p>`:`<p>Realisasi output: ${(k.realOutput||[]).map(num).join(", ")||"-"}</p>`}</div>`}).join("")||'<div class="card">Tidak ada komponen yang menjadi tanggung jawab Anda.</div>'},
 
-user(){return `<div class="card"><h3>Pengguna, jabatan, dan lingkup anggaran</h3>
+user(){const at=`<option value="">-</option>${U.filter(x=>["atasan","super_admin"].includes(x.role)).map(x=>`<option value="${x.id}">${x.nama}</option>`).join("")}`;
+ return `<div class="card"><h3>Tambah pengguna</h3>
+ ${info?`<div class="n" style="background:#e6f6ee;border-color:#b6e3cb;color:#0c6847">${ic("check")}<span>${info}</span></div>`:""}
+ <div class="g"><label>Nama lengkap<input id="nu_nama"></label><label>Email<input id="nu_em" type="email"></label><label>Password sementara (min. 6 karakter)<input id="nu_pw" type="text" autocomplete="off"></label>
+ <label>Peran<select id="nu_role">${Object.entries(ROLES).filter(([k])=>k!=="super_admin").concat([["super_admin",ROLES.super_admin]]).map(([k,v])=>`<option value="${k}" ${k==="pegawai"?"selected":""}>${v}</option>`).join("")}</select></label>
+ <label>Jabatan<select id="nu_jab">${JAB.map(j=>`<option>${j}</option>`).join("")}</select></label><label>Satker (PROV / nama kab/kota)<input id="nu_sat"></label>
+ <label>Atasan langsung<select id="nu_atasan">${at}</select></label><label>Lingkup (khusus Atasan; * = semua)<input id="nu_lk" list="kl" placeholder="PROV|P3SPH"></label></div>
+ <p><button class="b" onclick="A.tambah()">${ic("users")}Tambah pengguna</button></p>
+ <span class="mu">Akun langsung aktif. Berikan email dan password sementara kepada pengguna; mereka dapat mengganti password lewat tombol Reset sandi.</span></div>
+ <div class="card"><h3>Pengguna, jabatan, dan lingkup anggaran</h3>
  <p class="mu">Lingkup hanya berlaku untuk peran Atasan. Isi <b>*</b> untuk melihat seluruh anggaran (mis. Kabag Administrasi), atau kunci bagian dipisah koma, contoh: <code>PROV|P3SPH, BINTAN|HUMAS</code>.</p>
  <datalist id="kl">${[...new Set(K.map(k=>k.kunci).filter(Boolean))].map(x=>`<option value="${x}">`).join("")}</datalist>
  <div class="tw"><table><tr><th class="l">Nama</th><th class="l">Email</th><th>Peran</th><th>Jabatan</th><th>Satker</th><th>Atasan langsung</th><th>Lingkup</th><th></th></tr>
@@ -220,7 +229,7 @@ user(){return `<div class="card"><h3>Pengguna, jabatan, dan lingkup anggaran</h3
  <td><input id="s${u.id}" value="${u.satker||""}" style="width:90px"></td>
  <td><select id="a${u.id}"><option value="">-</option>${U.filter(x=>x.id!==u.id&&["atasan","super_admin"].includes(x.role)).map(x=>`<option value="${x.id}" ${u.atasan===x.id?"selected":""}>${x.nama}</option>`).join("")}</select></td>
  <td><input id="l${u.id}" list="kl" value="${(u.lingkup||[]).join(", ")}" style="width:180px"></td>
- <td><button class="b s" onclick="A.user('${u.id}')">Simpan</button></td></tr>`).join("")}</table></div></div>`}
+ <td style="white-space:nowrap"><button class="b s" onclick="A.user('${u.id}')">Simpan</button> <button class="b s" title="Kirim email reset password" onclick="A.reset('${u.email}')">Reset sandi</button></td></tr>`).join("")}</table></div></div>`}
 };
 
 // ---------- aksi ----------
@@ -234,6 +243,15 @@ const up=async(kind,refId,f)=>{const d=await kompres(f);return (await addDoc(col
 const run=fn=>async(...a)=>{err="";try{await fn(...a)}catch(e){err=e.message}render()};
 window.A={
  lihat:async id=>{const w=window.open("","_blank");try{const x=await getDoc(doc(db,"spjfoto",id));w.document.write(`<body style="margin:0;background:#000"><img src="${x.data().data}" style="max-width:100%;display:block;margin:auto">`)}catch(e){w.close();err=e.message;render()}},
+ tambah:run(async()=>{info="";const v=i=>$("nu_"+i).value.trim(),f={nama:v("nama"),em:v("em").toLowerCase(),pw:$("nu_pw").value,role:$("nu_role").value,jab:$("nu_jab").value,sat:v("sat").toUpperCase(),at:$("nu_atasan").value,lk:v("lk").split(",").map(x=>x.trim().toUpperCase()).filter(Boolean)};
+  if(!f.nama||!f.em||f.pw.length<6)throw Error("Isi nama, email, dan password sementara (minimal 6 karakter)");
+  const sec=initializeApp(firebaseConfig,"sec"+Date.now()),sa=getAuth(sec);
+  try{const c=await createUserWithEmailAndPassword(sa,f.em,f.pw);
+   await setDoc(doc(getFirestore(sec),"users",c.user.uid),{nama:f.nama,email:f.em,role:"pegawai",atasan:""});
+   await updateDoc(doc(db,"users",c.user.uid),{role:f.role,jabatan:f.jab,satker:f.sat,atasan:f.at,lingkup:f.lk});
+   info=`Akun ${f.em} dibuat sebagai ${ROLES[f.role]}. Berikan email dan password sementara kepada yang bersangkutan.`}
+  finally{await signOut(sa).catch(()=>{});deleteApp(sec).catch(()=>{})}}),
+ reset:run(async e=>{await sendPasswordResetEmail(auth,e);info="Email reset password dikirim ke "+e+" (periksa juga folder spam)."}),
  tpl:()=>{const h=["Satker","Bagian","Program","Kegiatan","KRO","RO","Kode Komponen","Uraian Komponen","Sub Komponen","Akun Belanja","Detail","Pagu",...BLN.map(m=>"Rencana "+m),"Indikator","Satuan","Target","Email PJ"];
   const ex=["PROV","P3SPH","Contoh Program","Contoh Kegiatan","QDB","QDB.001","051","Sosialisasi pengawasan","A. Persiapan","521211","Belanja bahan",6000000,...BLN.map((_,i)=>i<6?1000000:0),"Jumlah kegiatan","Kegiatan",12,"pegawai@contoh.go.id"];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([h,ex]),"Anggaran");XLSX.writeFile(wb,"template-impor-sirenku.xlsx")},
