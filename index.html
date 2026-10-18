@@ -257,7 +257,7 @@ catat(){const l=P.filter(p=>p.status==="dibayar");
 komp(){const k=K.find(x=>x.id===editId)||{},e=KEU[editId]||{};const m=(id,a)=>`<div class="m12">${BLN.map((b,i)=>`<label>${b}<input type="number" id="${id}${i}" value="${(a||[])[i]??""}"></label>`).join("")}</div>`;
  const kt=x=>[ns(x.satker),x.bagian,x.program,x.kegiatan,x.kro,x.ro,x.kode,x.subkomp,x.akun,x.detail].map(v=>String(v||"").trim().toLowerCase()).join("|");
  const ip=imp?(imp.done!=null?`<p style="color:var(--g);font-weight:600">${ic("check")} ${imp.done} baris anggaran berhasil diimpor.</p>`:imp.prog!=null?`<p>Menyimpan… ${imp.prog} dari ${imp.ok.length} baris</p>`:
-  `<p><b>${imp.ok.length}</b> baris siap diimpor, total pagu <b>${rp(sum(imp.ok.map(x=>x.pg)))}</b> (${imp.ok.filter(x=>!x.exist).length} baru, ${imp.ok.filter(x=>x.exist).length} memperbarui baris yang sudah ada)${imp.bad.length?`, <span class="neg">${imp.bad.length} baris ditolak</span>`:""}.</p>
+  `<p><b>${imp.ok.length}</b> baris siap diimpor, total pagu <b>${rp(sum(imp.ok.map(x=>x.pg)))}</b> (${imp.ok.filter(x=>!x.exist).length} baru, ${imp.ok.filter(x=>x.exist).length} memperbarui baris yang sudah ada)${imp.ok.reduce((a,x)=>a+(x.dels||[]).length,0)?`, <b>${imp.ok.reduce((a,x)=>a+(x.dels||[]).length,0)}</b> baris ganda lama akan dihapus`:""}${imp.bad.length?`, <span class="neg">${imp.bad.length} baris ditolak</span>`:""}.</p>
   ${imp.bad.concat(imp.warn).slice(0,10).map(x=>`<div class="neg" style="font-size:12px">${x}</div>`).join("")}
   ${imp.ok.length?`<div class="tw"><table><tr><th class="l">Satker | Penanggung Jawab Anggaran</th><th class="l">Komponen</th><th class="l">Akun</th><th class="l">Detail</th><th>Pagu</th><th>Status</th></tr>${imp.ok.slice(0,8).map(x=>`<tr><td class="l">${x.d.satker} | ${x.d.bagian}</td><td class="l">${x.d.kode} ${x.d.uraian||""}</td><td class="l">${x.d.akun}</td><td class="l">${x.d.detail}</td><td>${rp(x.pg)}</td><td>${x.exist?"perbarui":"baru"}</td></tr>`).join("")}</table></div>
   <p class="mu">Menampilkan 8 baris pertama.</p><button class="b" onclick="A.impor()">Simpan ${imp.ok.length} baris ke database</button> `:""}<button class="b s" onclick="A.bi()">Batal</button>`):"";
@@ -385,7 +385,7 @@ window.A={
  baca:run(async()=>{const f=$("xf").files[0];if(!f)throw Error("Pilih file Excel dulu");if(!window.XLSX)throw Error("Pustaka Excel gagal dimuat, periksa koneksi internet");
   const wb=XLSX.read(await f.arrayBuffer()),rs=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),nk=h=>String(h).toLowerCase().replace(/[^a-z0-9]/g,"");
   const kt=x=>[ns(x.satker),x.bagian,x.program,x.kegiatan,x.kro,x.ro,x.kode,x.subkomp,x.akun,x.detail].map(v=>String(v||"").trim().toLowerCase()).join("|");
-  const rp0=v=>typeof v==="number"?v:num(String(v||"").replace(/[^\d-]/g,"")),ok=[],bad=[],warn=[],seen={},kodeSat=Object.values(KODE);
+  const rp0=v=>typeof v==="number"?v:num(String(v||"").replace(/[^\d-]/g,"")),ok=[],bad=[],warn=[],seen={},seen2={},kodeSat=Object.values(KODE),ktn=x=>[ns(x.satker),x.program,x.kegiatan,x.kro,x.ro,x.kode,x.subkomp,x.akun,x.detail].map(v=>String(v||"").trim().toLowerCase()).join("|");
   rs.forEach((r0,i)=>{const r={};for(const k in r0)r[nk(k)]=r0[k];const g=(...ks)=>{for(const k of ks)if(r[k]!==undefined&&String(r[k]).trim()!=="")return String(r[k]).trim();return""},n=i+2;
    const pagu=g("pagu","paguanggaran");let d,coa=r.kodecoa!==undefined;
    if(coa){ // format ringkas: Penanggung Jawab Anggaran | Satker | Kode COA | Pagu Anggaran
@@ -400,14 +400,21 @@ window.A={
     if(!d.satker||!d.bagian||!d.kode||!d.uraian)return bad.push(`Baris ${n}: Satker, Penanggung Jawab Anggaran, Kode Komponen, dan Uraian Komponen wajib diisi`)}
    if(pagu===""||!/\d/.test(String(pagu)))return bad.push(`Baris ${n}: Pagu kosong atau bukan angka`);
    const key=kt(d);if(seen[key])return bad.push(`Baris ${n}: sama dengan baris ${seen[key]} (duplikat)`);seen[key]=n;
-   const ex=K.find(k=>kt(k)===key);
+   let ex,dels=[];
+   if(coa){ // cocokkan tanpa melihat Penanggung Jawab Anggaran, supaya perubahan PJ Anggaran = revisi, bukan baris baru
+    const k2=ktn(d);if(seen2[k2])return bad.push(`Baris ${n}: akun/detail sama dengan baris ${seen2[k2]} meski Penanggung Jawab Anggaran berbeda (duplikat)`);seen2[k2]=n;
+    const pk=k=>P.some(p=>p.komponenId===k.id),sc=k=>(pk(k)?1000:0)+((k.realOutput||[]).length?20:0)+(k.pj?10:0)+(sum((KEU[k.id]&&KEU[k.id].rencana)||[])>0?5:0)+((k.indikator||k.target)?3:0),
+     ra=k=>String((KEU[k.id]||{}).revisiAt||""),cs=K.filter(k=>ktn(k)===k2).sort((a,b)=>sc(b)-sc(a)||ra(a).localeCompare(ra(b)));
+    ex=cs[0];dels=cs.slice(1).filter(k=>!pk(k)).map(k=>k.id);
+    if(cs.length-1>dels.length)warn.push(`Baris ${n}: ada baris ganda lama yang sudah punya pengajuan pembayaran, tidak dihapus otomatis`)}
+   else ex=K.find(k=>kt(k)===key);
    if(!coa){const em=g("emailpj","pj").toLowerCase(),pj=em?(U.find(u=>(u.email||"").toLowerCase()===em)||{}).id||"":"";if(em&&!pj)warn.push(`Baris ${n}: email PJ ${em} belum terdaftar (PJ dikosongkan)`);d.pj=pj}
-   ok.push({d,pg:rp0(pagu),rc:coa?((ex&&KEU[ex.id]&&KEU[ex.id].rencana)||Array(12).fill(0)):BLN.map(m=>rp0(r["rencana"+m.toLowerCase()]??r[m.toLowerCase()])),exist:(ex||{}).id,coa})});
+   ok.push({d,pg:rp0(pagu),rc:coa?((ex&&KEU[ex.id]&&KEU[ex.id].rencana)||Array(12).fill(0)):BLN.map(m=>rp0(r["rencana"+m.toLowerCase()]??r[m.toLowerCase()])),exist:(ex||{}).id,dels,coa})});
   imp={ok,bad,warn}}),
  impor:run(async()=>{if(!imp||!imp.ok.length)return;const L=imp.ok;imp.prog=0;let n=0;
   for(let i=0;i<L.length;i+=8){const b=writeBatch(db);L.slice(i,i+8).forEach(x=>{const d={...x.d,kunci:x.d.satker+"|"+x.d.bagian},ref=x.exist?doc(db,"komponen",x.exist):doc(collection(db,"komponen"));
     if(x.exist)b.update(ref,d);else b.set(ref,{pj:"",uraian:"",indikator:"",satuan:"",target:"",...d,realOutput:[],rencanaOutput:[]});
-    b.set(doc(db,"keu",ref.id),{kunci:d.kunci,pagu:x.pg,rencana:x.rc,revisiOleh:me.id,revisiAt:new Date().toISOString()})});
+    b.set(doc(db,"keu",ref.id),{kunci:d.kunci,pagu:x.pg,rencana:x.rc,revisiOleh:me.id,revisiAt:new Date().toISOString()});(x.dels||[]).forEach(id=>{b.delete(doc(db,"komponen",id));b.delete(doc(db,"keu",id))})});
    await b.commit();n=Math.min(L.length,i+8);imp.prog=n;render()}
   imp={done:L.length}}),
  bi:()=>{imp=null;render()},
