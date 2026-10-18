@@ -186,6 +186,9 @@ const gab=(...a)=>{const i0=info;let k=0;const o=a.filter(Boolean).map(f=>{info=
 const OK=t=>`<div class="n" style="background:#e6f6ee;border-color:#b6e3cb;color:#0c6847">${ic("check")}<span>${t}</span></div>`;
 const KF=()=>K.filter(k=>(!fSat||ns(k.satker)===fSat)&&(!fBag||String(k.bagian||"").toUpperCase()===fBag));
 const opt=(l,c,sn)=>`<option value="">-</option>${l.map(x=>`<option value="${x}" ${x===c?"selected":""}>${sn?SN(x):x}</option>`).join("")}${c&&!l.includes(c)?`<option selected>${c}</option>`:""}`;
+const coaFull=k=>[k.kegiatan,k.ro,k.kode,k.subkomp,k.akun,k.detail].map(v=>String(v||"").trim()).filter(Boolean).join(".")||k.uraian||"",
+ pkRows=(q,b)=>{q=String(q||"").toLowerCase().trim();return K.filter(k=>(!me.satker||!k.satker||ns(k.satker)===ns(me.satker))&&(!b||String(k.bagian||"").toUpperCase()===b)&&(!q||(coaFull(k)+" "+(k.uraian||"")).toLowerCase().includes(q))).sort((a,c)=>coaFull(a).localeCompare(coaFull(c)))},
+ pkOpts=(q,b)=>{const r=pkRows(q,b);return r.map(k=>`<option value="${k.id}">${coaFull(k)} · ${k.bagian||""}</option>`).join("")||'<option value="" disabled selected>Tidak ada Kode COA yang cocok</option>'};
 const fbar=()=>`<p style="display:flex;gap:10px;flex-wrap:wrap"><label class="mu">Satker <select onchange="A.fs(this.value)"><option value="">Semua</option>${SATKER.map(x=>`<option value="${x}" ${x===fSat?"selected":""}>${SN(x)}</option>`).join("")}</select></label><label class="mu">Penanggung Jawab Anggaran <select onchange="A.fb(this.value)"><option value="">Semua</option>${BAGIAN.map(x=>`<option ${x===fBag?"selected":""}>${x}</option>`).join("")}</select></label></p>`;
 const LAP=()=>{const rs=KF().filter(k=>KEU[k.id]);
  if(fLap===1){const lv=fLv,nmx=(r,i)=>[r.program,r.kegiatan,r.kro,r.ro,((r.kode||"")+" "+(r.uraian||"")).trim(),r.subkomp,r.akun,r.detail][i]||"(belum diisi)",g=new Map();
@@ -230,8 +233,10 @@ pantau(){const l=P;
  <td class="l">${p.spjId?`<a href="#" onclick="A.lihat('${p.spjId}');return false">Lihat bukti</a>`:sdh?`<span class="${d>=7?"neg":""}">Belum upload (${d} hari)${d>=7?" · terlambat":""}</span>`:"-"}</td></tr>`}).join("")||'<tr><td colspan=6>Belum ada pengajuan dari bawahan</td></tr>'}</table></div></div>`},
 
 ajukan(){const mine=P.filter(p=>p.pengaju===me.id).sort((a,b)=>String(b.tglMinta||"").localeCompare(String(a.tglMinta||"")));
- return `${info?OK(info):""}<div class="card"><h3>Permintaan pembayaran</h3>${telat(me.id)?`<p class="neg">Permintaan baru diblokir: ada SPJ yang melewati batas waktu upload.</p>`:`<p class="mu">Nama pengaju dan tanggal permintaan terisi otomatis. Kode COA, uraian COA, dan bagian penanggung jawab diambil dari komponen yang dipilih.</p><div class="g">
- <label>Komponen / COA<select id="pk">${K.filter(k=>!me.satker||!k.satker||ns(k.satker)===ns(me.satker)).map(k=>`<option value="${k.id}">${k.akun||k.kode} · ${k.detail||k.uraian} · ${k.bagian||""}</option>`).join("")}</select></label>
+ return `${info?OK(info):""}<div class="card"><h3>Permintaan pembayaran</h3>${telat(me.id)?`<p class="neg">Permintaan baru diblokir: ada SPJ yang melewati batas waktu upload.</p>`:`<p class="mu">Nama pengaju dan tanggal permintaan terisi otomatis. Uraian COA dan Penanggung Jawab Anggaran diambil dari Kode COA yang dipilih.</p><div class="g">
+ <label>Penanggung Jawab Anggaran<select id="pb" onchange="A.pkf()"><option value="">Semua</option>${BAGIAN.map(x=>`<option>${x}</option>`).join("")}</select></label>
+ <label>Cari Kode COA<input id="pq" placeholder="mis. 524111 atau Uang Harian" oninput="A.pkf()" autocomplete="off"></label>
+ <label>Kode COA <span id="pc" class="mu">(${pkRows("","").length} pilihan)</span><select id="pk">${pkOpts("","")}</select></label>
  <label>Status pembayaran<select id="pm"><option value="belum">Belum diterima (SPJ dulu, lalu dibayar Admin TF)</option><option value="sudah">Sudah diterima (SPJ menyusul)</option></select></label>
  <label>Tanggal diterima (jika sudah diterima)<input id="ptg" type="date"></label>
  <label>Belanja jamuan tamu pimpinan?<select id="pjm"><option value="">Bukan</option><option value="1">Ya</option></select></label>
@@ -418,6 +423,7 @@ window.A={
    await b.commit();n=Math.min(L.length,i+8);imp.prog=n;render()}
   imp={done:L.length}}),
  bi:()=>{imp=null;render()},
+ pkf:()=>{const q=$("pq").value,b=$("pb").value;$("pk").innerHTML=pkOpts(q,b);$("pc").textContent="("+pkRows(q,b).length+" pilihan)"},
  lv:i=>{fLv=+i;render()},
  fb:v=>{fBag=v;render()},ftw:v=>{fTw=+v;render()},flap:v=>{fLap=+v;render()},fbl:v=>{fBln=v;render()},
  xls:()=>{const L=LAP(),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([L.head,...L.rows.map(r=>r.map(c=>c&&typeof c==="object"?c.t:c))]),["","Penyerapan","Realisasi Pembayaran","Capaian Output"][fLap]);XLSX.writeFile(wb,["","laporan-penyerapan-anggaran","rekap-realisasi-pembayaran","laporan-capaian-output"][fLap]+".xlsx")},
