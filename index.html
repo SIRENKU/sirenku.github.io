@@ -114,7 +114,7 @@ const firebaseConfig={apiKey:"AIzaSyDPrFOqEUKagrftLk4-4gZsb4eQQy96xb8",authDomai
 const fb=initializeApp(firebaseConfig),auth=getAuth(fb),db=getFirestore(fb);
 const BLN=["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGS","SEP","OKT","NOV","DES"],JENIS=["GU","UP","TUP","TU","LS"];
 const ROLES={super_admin:"Super Admin",atasan:"Atasan / Pimpinan",perencana:"Admin Perencana",admin_tf:"Admin TF",admin_catat:"Admin Catat",admin_verif:"Admin Verifikasi",pegawai:"Pegawai"};
-let portal="pegawai",info="",imp=null,fSat="",fBag="",fTw=Math.floor(new Date().getMonth()/3),fBln="",fLap=1,fLv=0,me=null,tab="dash",U=[],PG=[],impK=null,K=[],KEU={},P=[],S={},unsubs=[],editId=null,err="";
+let portal="pegawai",info="",imp=null,fSat="",fBag="",fTw=Math.floor(new Date().getMonth()/3),fBln="",fLap=1,fLv=0,me=null,tab="dash",U=[],PG=[],impK=null,K=[],O={},KEU={},P=[],S={},unsubs=[],editId=null,err="";
 const $=id=>document.getElementById(id),rp=n=>"Rp "+Math.round(n||0).toLocaleString("id-ID"),num=v=>+v||0;
 const sum=a=>(a||[]).reduce((x,y)=>x+num(y),0),tw=(a,t)=>sum((a||[]).slice(t*3,t*3+3));
 const PORTAL={pegawai:{t:"Pegawai",i:"user",r:["pegawai","perencana","admin_tf","admin_catat","admin_verif"],d:"Untuk pegawai, Admin Perencana, Admin TF, Admin Catat, dan Admin Verifikasi."},
@@ -130,6 +130,7 @@ const feed=(st,id,q)=>unsubs.push(onSnapshot(q,x=>{st[id]=x.docs.map(d=>({id:d.i
 onAuthStateChanged(auth,u=>{unsubs.forEach(f=>f());unsubs=[];PG=[];KP={};PP={};KEU={};P=[];if(!u){me=null;return render()}
  const sub=(q,fn)=>unsubs.push(onSnapshot(q,x=>{fn(x);render()},e=>{err=e.message;render()}));
  sub(collection(db,"users"),x=>{U=x.docs.map(d=>({id:d.id,...d.data()}));me=U.find(y=>y.id===u.uid)||null});
+ sub(collection(db,"output"),x=>{O={};x.docs.forEach(d=>O[d.id]={id:d.id,...d.data()})});
  sub(collection(db,"komponen"),x=>K=x.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.kode||"").localeCompare(b.kode||"")));
  let done=false;const w=setInterval(()=>{if(!me||done)return;done=true;clearInterval(w);setup(u.uid)},300);unsubs.push(()=>clearInterval(w));
 });
@@ -153,8 +154,8 @@ function notifs(){const n=[];
   if(p.pengaju===me.id)n.push(`Upload bukti SPJ "${p.uraian}" (sisa ${Math.max(0,7-Math.floor(a))} hari)${a>=7?" — TERLAMBAT: atasan telah diberi tahu & pengajuan berikutnya Anda terhambat":""}`);
   if(a>=7&&p.atasan===me.id)n.push(`${p.nama} belum upload SPJ "${p.uraian}" lebih dari 1 minggu; ini menghambat pengajuan GU/UP/TUP/TU/LS berikutnya`)}});
  if(isR("super_admin","admin_catat","admin_tf"))JENIS.forEach(j=>{const s=S[j];if(s?.limit&&(s.limit-terpakai(j))/s.limit<.2)n.push(`Saldo ${j} ke-${s.ke} menipis (sisa ${rp(s.limit-terpakai(j))}). Ajukan ${j} berikutnya.`)});
- if(isR("super_admin","perencana"))K.forEach(k=>{const pg=KEU[k.id]?.pagu;if(pg&&sum(real(k.id))/pg>=.75&&!k.reqSent)n.push(`Realisasi komponen ${k.kode} ≥75%. Kirim permintaan input capaian output di tab Output.`)});
- K.filter(k=>k.pj===me.id&&k.reqSent&&!k.outputId&&!k.kendala).forEach(k=>n.push(`Mohon input realisasi output & upload bukti untuk komponen ${k.kode}, atau isi kendala + target penyelesaian.`));
+ if(isR("super_admin","perencana"))OG().forEach(g=>{if(g.adaPagu&&g.pagu&&g.rows.reduce((a,k)=>a+sum(real(k.id)),0)/g.pagu>=.75&&!g.o.reqSent)n.push(`Realisasi komponen ${g.kode} ≥75%. Kirim permintaan input capaian output di tab Output.`)});
+ Object.values(O).filter(o=>o.pj===me.id&&o.reqSent&&!o.outputId&&!o.kendala).forEach(o=>n.push(`Mohon input realisasi output & upload bukti untuk komponen ${o.kode}, atau isi kendala + target penyelesaian.`));
  return n}
 
 // ---------- tampilan ----------
@@ -197,7 +198,11 @@ const gab=(...a)=>{const i0=info;let k=0;const o=a.filter(Boolean).map(f=>{info=
 const OK=t=>`<div class="n" style="background:#e6f6ee;border-color:#b6e3cb;color:#0c6847">${ic("check")}<span>${t}</span></div>`;
 const KF=()=>K.filter(k=>(!fSat||ns(k.satker)===fSat)&&(!fBag||String(k.bagian||"").toUpperCase()===fBag));
 const opt=(l,c,sn)=>`<option value="">-</option>${l.map(x=>`<option value="${x}" ${x===c?"selected":""}>${sn?SN(x):x}</option>`).join("")}${c&&!l.includes(c)?`<option selected>${c}</option>`:""}`;
-const coaFull=k=>[k.kegiatan,k.ro,k.kode,k.subkomp,k.akun,k.detail].map(v=>String(v||"").trim()).filter(Boolean).join(".")||k.uraian||"",
+const kk=k=>String(k.kompLengkap||"").trim()||[k.kegiatan,k.ro,k.kode,k.subkomp].map(v=>String(v||"").trim().replace(/^\.+|\.+$/g,"")).filter(Boolean).join(".")||String(k.kode||""),
+ OG=()=>{const g=new Map();KF().forEach(k=>{const c=kk(k);if(!c)return;const x=g.get(c)||{id:c,kode:c,rows:[],pagu:0,adaPagu:false,satker:new Set(),bagian:new Set()};x.rows.push(k);if(KEU[k.id]){x.pagu+=num(KEU[k.id].pagu);x.adaPagu=true}x.satker.add(SN(ns(k.satker)));x.bagian.add(String(k.bagian||"").toUpperCase());g.set(c,x)});
+  return [...g.values()].map(x=>({...x,o:O[x.id]||{},pj:(O[x.id]||{}).pj||""})).sort((a,b)=>a.kode.localeCompare(b.kode))},
+ tgt=o=>num(o.target)||1,
+ coaFull=k=>[k.kegiatan,k.ro,k.kode,k.subkomp,k.akun,k.detail].map(v=>String(v||"").trim()).filter(Boolean).join(".")||k.uraian||"",
  pkRows=(q,b)=>{q=String(q||"").toLowerCase().trim();return K.filter(k=>(!me.satker||!k.satker||ns(k.satker)===ns(me.satker))&&(!b||String(k.bagian||"").toUpperCase()===b)&&(!q||(coaFull(k)+" "+(k.uraian||"")).toLowerCase().includes(q))).sort((a,c)=>coaFull(a).localeCompare(coaFull(c)))},
  pkOpts=(q,b)=>{const r=pkRows(q,b);return r.map(k=>`<option value="${k.id}">${coaFull(k)} · ${k.bagian||""}</option>`).join("")||'<option value="" disabled selected>Tidak ada Kode COA yang cocok</option>'};
 const fbar=()=>`<p style="display:flex;gap:10px;flex-wrap:wrap"><label class="mu">Satker <select onchange="A.fs(this.value)"><option value="">Semua</option>${SATKER.map(x=>`<option value="${x}" ${x===fSat?"selected":""}>${SN(x)}</option>`).join("")}</select></label><label class="mu">Penanggung Jawab Anggaran <select onchange="A.fb(this.value)"><option value="">Semua</option>${BAGIAN.map(x=>`<option ${x===fBag?"selected":""}>${x}</option>`).join("")}</select></label></p>`;
@@ -207,7 +212,7 @@ const LAP=()=>{const rs=KF().filter(k=>KEU[k.id]);
   const rows=[...g.values()].map(x=>[...x.path,x.p,x.r,x.p-x.r,x.p?x.r/x.p*100:0]),t=rows.reduce((a,r)=>[a[0]+r[lv+1],a[1]+r[lv+2]],[0,0]);
   rows.push(["TOTAL",...Array(lv).fill(""),t[0],t[1],t[0]-t[1],t[0]?t[1]/t[0]*100:0]);
   return{head:[...LV.slice(0,lv+1),"Pagu","Realisasi","Sisa Anggaran","% Serapan"],rows,nl:lv+1,pct:lv+4}}
- if(fLap===3){const nn=n=>({h:String(n),t:n}),rows=KF().map(k=>[k.kode||"",k.uraian||"",nn(num(k.target)),nn((k.realOutput||[]).reduce((a,v)=>a+num(v),0)),k.satuan||"",{h:k.outputId?`<a href="#" onclick="A.lihat('${k.outputId}');return false">Lihat / unduh</a>`:"-",t:k.outputId?"Ada":"Belum ada"}]);return{head:["Kode COA (Komponen)","Uraian","Target Output","Capaian Output","Satuan","File Output"],rows,nl:2,pct:-1}}
+ if(fLap===3){const nn=n=>({h:String(n),t:n}),rows=OG().map(g=>[g.kode,{h:g.adaPagu?rp(g.pagu):"-",t:g.adaPagu?g.pagu:""},nn(tgt(g.o)),nn((g.o.realOutput||[]).reduce((a,v)=>a+num(v),0)),g.o.satuan||"",{h:g.o.outputId?`<a href="#" onclick="A.lihat('${g.o.outputId}');return false">Lihat / unduh</a>`:"-",t:g.o.outputId?"Ada":"Belum ada"}]);return{head:["Kode Komponen","Pagu","Target Output","Capaian Output","Satuan","File Output"],rows,nl:1,pct:-1}}
  const ids=new Set(rs.map(k=>k.id)),kd=Object.fromEntries(K.map(k=>[k.id,k]));
  const l=P.filter(p=>["dibayar","tercatat"].includes(p.status)&&ids.has(p.komponenId)&&(p.mode===undefined||p.buktiBayarId)&&(fBln===""||new Date(p.tglBayar).getMonth()===+fBln)).sort((a,b)=>String(a.tglBayar).localeCompare(String(b.tglBayar)));
  const rows=l.map(p=>{const k=kd[p.komponenId]||{},pl=num((S[p.jenis]||{}).limit);return[p.coa||k.akun||"",p.uraianCoa||k.detail||k.uraian||"",p.bagian||k.bagian||"",p.uraian||"",String(p.tglBayar||"").slice(0,10),num(p.jumlah),p.jenis?`${p.jenis} ke-${p.ke||1}`:"(belum dicatat)",p.jenis?pl:"-",p.jenis?pl-terpakai(p.jenis):"-"]});
@@ -277,7 +282,7 @@ komp(){const k=K.find(x=>x.id===editId)||{},e=KEU[editId]||{};const m=(id,a)=>`<
   ${imp.bad.concat(imp.warn).slice(0,10).map(x=>`<div class="neg" style="font-size:12px">${x}</div>`).join("")}
   ${imp.ok.length?`<div class="tw"><table><tr><th class="l">Satker | Penanggung Jawab Anggaran</th><th class="l">Komponen</th><th class="l">Akun</th><th class="l">Detail</th><th>Pagu</th><th>Status</th></tr>${imp.ok.slice(0,8).map(x=>`<tr><td class="l">${x.d.satker} | ${x.d.bagian}</td><td class="l">${x.d.kode} ${x.d.uraian||""}</td><td class="l">${x.d.akun}</td><td class="l">${x.d.detail}</td><td>${rp(x.pg)}</td><td>${x.exist?"perbarui":"baru"}</td></tr>`).join("")}</table></div>
   <p class="mu">Menampilkan 8 baris pertama.</p><button class="b" onclick="A.impor()">Simpan ${imp.ok.length} baris ke database</button> `:""}<button class="b s" onclick="A.bi()">Batal</button>`):"";
- return `<div class="card"><h3>Impor dari Excel</h3><p class="mu">Format ringkas: kolom <b>Penanggung Jawab Anggaran, Satker, Kode COA, Pagu Anggaran</b>. Kode COA berbentuk <b>Program.Kegiatan.KRO.RO.Komponen.SubKomponen.Akun.KodeItem-Uraian</b> (mis. CQ.5245.BAH.001.201.0A.524111.000283-Akomodasi Penginapan). Template lengkap (RPD, indikator, email PJ) tetap bisa dipakai. Satu baris Excel = satu baris anggaran paling rinci; baris yang sama akan diperbarui (revisi pagu), bukan digandakan, dan PJ, RPD, serta target yang sudah ada tidak diubah.</p>
+ return `<div class="card"><h3>Impor dari Excel</h3><p class="mu">Format ringkas: kolom <b>Penanggung Jawab Anggaran, Satker, Kode COA, Pagu Anggaran</b> dan (opsional) <b>Kode Komponen</b> yang menentukan tampilan kolom Komponen & menu Output. Kode COA berbentuk <b>Program.Kegiatan.KRO.RO.Komponen.SubKomponen.Akun.KodeItem-Uraian</b> (mis. CQ.5245.BAH.001.201.0A.524111.000283-Akomodasi Penginapan). Template lengkap (RPD, indikator, email PJ) tetap bisa dipakai. Satu baris Excel = satu baris anggaran paling rinci; baris yang sama akan diperbarui (revisi pagu), bukan digandakan, dan PJ, RPD, serta target yang sudah ada tidak diubah.</p>
  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="b s" onclick="A.tplCoa()">${ic("file")}Unduh template (Kode COA)</button><button class="b s" onclick="A.tpl()">${ic("file")}Template lengkap</button><input type="file" id="xf" accept=".xlsx,.xls,.csv"><button class="b" onclick="A.baca()">Baca file</button></div><div style="margin-top:12px">${ip}</div></div>
  <div class="card"><h3>${editId?"Revisi":"Input"} Pagu Anggaran (Program, Kegiatan, KRO, RO, Komponen, Akun Belanja, Detail)</h3><div class="g">
  ${[["satker","Satker"],["program","Program"],["kegiatan","Kegiatan"],["kro","KRO"],["ro","RO"],["kode","Kode komponen"],["uraian","Uraian komponen"],["bagian","Penanggung Jawab Anggaran"],["subkomp","Sub komponen"],["akun","Akun belanja"],["detail","Detail"],["indikator","Indikator kinerja"],["satuan","Satuan"],["target","Target"]].map(([i,l])=>i==="satker"||i==="bagian"?`<label>${l}<select id="k_${i}">${opt(i==="satker"?SATKER:BAGIAN,i==="satker"?ns(k.satker):String(k.bagian||"").toUpperCase(),i==="satker")}</select></label>`:`<label>${l}<input id="k_${i}" value="${k[i]||""}"></label>`).join("")}
@@ -285,15 +290,19 @@ komp(){const k=K.find(x=>x.id===editId)||{},e=KEU[editId]||{};const m=(id,a)=>`<
  <label>Penanggung jawab<select id="k_pj"><option value="">-</option>${U.map(u=>`<option value="${u.id}" ${k.pj===u.id?"selected":""}>${u.nama}</option>`).join("")}</select></label></div>
  <p class="mu">Rencana penarikan dana (RPD) diinput di menu RPD.</p><p>Rencana capaian output per bulan</p>${m("ro",k.rencanaOutput)}
  <p><button class="b" onclick="A.simpanK()">Simpan</button> ${editId?`<button class="b s" onclick="A.edit(null)">Batal</button>`:""}</p></div>
- <div class="card"><h3>Daftar Pagu Anggaran</h3>${fbar()}<p class="mu">${KF().length} baris · Total pagu ${rp(sum(KF().map(x=>(KEU[x.id]&&KEU[x.id].pagu)||0)))}</p><div class="tw"><table><tr><th class="l">Komponen</th><th class="l">Akun</th><th class="l">Detail</th><th>Pagu</th><th class="l">PJ</th><th></th></tr>${KF().map(x=>`<tr><td class="l">${x.kode||""} ${x.uraian||""}<div class="mu" style="font-size:12px">Satker: ${SN(ns(x.satker))||"-"}<br>Penanggung Jawab Anggaran: ${x.bagian||"-"}</div></td><td class="l">${x.akun||""}</td><td class="l">${x.detail||""}</td><td>${rp(KEU[x.id]?.pagu)}</td><td class="l">${nm(x.pj)}</td><td><button class="b s" onclick="A.edit('${x.id}')">Revisi</button></td></tr>`).join("")||'<tr><td class="l" colspan="6">Tidak ada data</td></tr>'}</table></div></div>`},
+ <div class="card"><h3>Daftar Pagu Anggaran</h3>${fbar()}<p class="mu">${KF().length} baris · Total pagu ${rp(sum(KF().map(x=>(KEU[x.id]&&KEU[x.id].pagu)||0)))}</p><div class="tw"><table><tr><th class="l">Komponen</th><th class="l">Akun</th><th class="l">Detail</th><th>Pagu</th><th class="l">PJ</th><th></th></tr>${KF().map(x=>`<tr><td class="l">${kk(x)} ${x.uraian||""}<div class="mu" style="font-size:12px">Satker: ${SN(ns(x.satker))||"-"}<br>Penanggung Jawab Anggaran: ${x.bagian||"-"}</div></td><td class="l">${x.akun||""}</td><td class="l">${x.detail||""}</td><td>${rp(KEU[x.id]?.pagu)}</td><td class="l">${nm(x.pj)}</td><td><button class="b s" onclick="A.edit('${x.id}')">Revisi</button></td></tr>`).join("")||'<tr><td class="l" colspan="6">Tidak ada data</td></tr>'}</table></div></div>`},
 
-output(){const l=K.filter(k=>isR("perencana","super_admin")||k.pj===me.id);
- return l.map(k=>{const pg=KEU[k.id]?.pagu,pct=pg?sum(real(k.id))/pg*100:null;const canEdit=k.pj===me.id||isR("super_admin");
-  return `<div class="card"><h3>${k.kode}${k.uraian?" - "+k.uraian:" · "+(k.akun||"")+" "+(k.detail||"")}</h3><p>PJ: ${nm(k.pj)} ${pct!=null?`· Realisasi anggaran ${pct.toFixed(1)}%`:""} ${k.reqSent?'<span class="tag">permintaan terkirim</span>':""}
-  ${isR("perencana","super_admin")&&pct>=75&&!k.reqSent?`<button class="b" onclick="A.req('${k.id}')">Kirim permintaan input capaian output</button>`:""}</p>
-  ${canEdit?`<p>Realisasi capaian output per bulan</p><div class="m12">${BLN.map((b,i)=>`<label>${b}<input type="number" id="ro_${k.id}_${i}" value="${(k.realOutput||[])[i]??""}"></label>`).join("")}</div>
-  <div class="g" style="margin-top:8px"><label>Upload bukti output<input type="file" id="of_${k.id}" accept="image/*"></label><label>Kendala (wajib bila belum ada output)<input id="kd_${k.id}" value="${k.kendala||""}"></label><label>Target penyelesaian<input type="date" id="ts_${k.id}" value="${k.targetSelesai||""}"></label></div>
-  <p><button class="b" onclick="A.out2('${k.id}')">Simpan output</button> ${k.outputId?`<a href="#" onclick="A.lihat('${k.outputId}');return false">Bukti output</a>`:""}</p>`:`<p>Realisasi output: ${(k.realOutput||[]).map(num).join(", ")||"-"}</p>`}</div>`}).join("")||'<div class="card">Tidak ada komponen yang menjadi tanggung jawab Anda.</div>'},
+output(){const adm=isR("perencana","super_admin"),l=OG().filter(g=>adm||g.pj===me.id);
+ const opts=sel=>`<option value="">-</option>${U.map(u=>`<option value="${u.id}" ${u.id===sel?"selected":""}>${u.nama||u.email}</option>`).join("")}`;
+ return `<div class="card"><h3>Output Komponen</h3>${adm?fbar():""}<p class="mu">${l.length} kode komponen · target output tiap komponen = 1. ${adm?"Jenis satuan dan penanggung jawab output diisi oleh Admin Perencana / Super Admin.":""}</p></div>`+l.map(g=>{const o=g.o,T=tgt(o),pg=g.adaPagu?g.pagu:null,rl=g.rows.reduce((a,k)=>a+sum(real(k.id)),0),pct=pg?rl/pg*100:null,canEdit=g.pj===me.id||isR("super_admin"),id=g.id,cap=(o.realOutput||[]).reduce((a,v)=>a+num(v),0);
+  return `<div class="card"><h3>${g.kode}</h3>
+  <p class="mu">Satker: ${[...g.satker].join(", ")} · Penanggung Jawab Anggaran: ${[...g.bagian].join(", ")} · ${g.rows.length} detail</p>
+  <p>Pagu: <b>${pg!=null?rp(pg):"-"}</b> · Target output: <b>${T}</b> ${o.satuan||"(satuan belum diisi)"} · Capaian: <b>${cap}</b> · PJ: ${nm(g.pj)} ${pct!=null?`· Realisasi anggaran ${pct.toFixed(1)}%`:""} ${o.reqSent?'<span class="tag">permintaan terkirim</span>':""}</p>
+  ${adm?`<div class="g"><label>Target output<input type="number" id="ot_${id}" value="${T}"></label><label>Jenis satuan<input id="os_${id}" value="${o.satuan||""}" placeholder="mis. Dokumen, Kegiatan, Laporan"></label><label>Penanggung jawab output<select id="oj_${id}">${opts(g.pj)}</select></label></div>
+  <p><button class="b" onclick="A.simpanO('${id}')">Simpan target & satuan</button> ${pct>=75&&!o.reqSent?`<button class="b s" onclick="A.req('${id}')">Kirim permintaan input capaian output</button>`:""}</p>`:""}
+  ${canEdit?`<p>Realisasi capaian output per bulan</p><div class="m12">${BLN.map((b,i)=>`<label>${b}<input type="number" id="ro_${id}_${i}" value="${(o.realOutput||[])[i]??""}"></label>`).join("")}</div>
+  <div class="g" style="margin-top:8px"><label>Upload bukti output<input type="file" id="of_${id}" accept="image/*"></label><label>Kendala (wajib bila belum ada output)<input id="kd_${id}" value="${o.kendala||""}"></label><label>Target penyelesaian<input type="date" id="ts_${id}" value="${o.targetSelesai||""}"></label></div>
+  <p><button class="b" onclick="A.out2('${id}')">Simpan output</button> ${o.outputId?`<a href="#" onclick="A.lihat('${o.outputId}');return false">Bukti output</a>`:""}</p>`:`<p>Realisasi output: ${(o.realOutput||[]).map(num).join(", ")||"-"}</p>`}</div>`}).join("")||'<div class="card">Tidak ada komponen yang menjadi tanggung jawab Anda.</div>'},
 
 user(){const at=`<option value="">-</option>${U.filter(x=>["atasan","super_admin"].includes(x.role)).map(x=>`<option value="${x.id}">${x.nama}</option>`).join("")}`;
  return `<div class="card"><h3>Tambah pengguna</h3>
@@ -400,7 +409,7 @@ window.A={
  tpl:()=>{const h=["Satker","Bagian","Program","Kegiatan","KRO","RO","Kode Komponen","Uraian Komponen","Sub Komponen","Akun Belanja","Detail","Pagu",...BLN.map(m=>"Rencana "+m),"Indikator","Satuan","Target","Email PJ"];
   const ex=["PROV","P3SPH","Contoh Program","Contoh Kegiatan","QDB","QDB.001","051","Sosialisasi pengawasan","A. Persiapan","521211","Belanja bahan",6000000,...BLN.map((_,i)=>i<6?1000000:0),"Jumlah kegiatan","Kegiatan",12,"pegawai@contoh.go.id"];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([h,ex]),"Anggaran");XLSX.writeFile(wb,"template-impor-sirenku.xlsx")},
- tplCoa:()=>{const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["PENANGGUNG JAWAB ANGGARAN","SATKER","KODE COA","PAGU ANGGARAN"],["PP DATIN","PROVINSI","CQ.5245.BAH.001.201.0A.524111.000283-Akomodasi Penginapan",640000]]),"Sheet1");XLSX.writeFile(wb,"template-impor_RAB-sirenku.xlsx")},
+ tplCoa:()=>{const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["PENANGGUNG JAWAB ANGGARAN","SATKER","KODE COA","PAGU ANGGARAN","KODE KOMPONEN"],["PP DATIN","PROVINSI","CQ.5245.BAH.001.201.0A.524111.000283-Akomodasi Penginapan",640000,"CQ.5245.BAH.001.201.0A"]]),"Sheet1");XLSX.writeFile(wb,"template-impor_RAB-sirenku.xlsx")},
  baca:run(async()=>{const f=$("xf").files[0];if(!f)throw Error("Pilih file Excel dulu");if(!window.XLSX)throw Error("Pustaka Excel gagal dimuat, periksa koneksi internet");
   const wb=XLSX.read(await f.arrayBuffer()),rs=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""}),nk=h=>String(h).toLowerCase().replace(/[^a-z0-9]/g,"");
   const kt=x=>[ns(x.satker),x.bagian,x.program,x.kegiatan,x.kro,x.ro,x.kode,x.subkomp,x.akun,x.detail].map(v=>String(v||"").trim().toLowerCase()).join("|");
@@ -409,7 +418,7 @@ window.A={
    const pagu=g("pagu","paguanggaran");let d,coa=r.kodecoa!==undefined;
    if(coa){ // format ringkas: Penanggung Jawab Anggaran | Satker | Kode COA | Pagu Anggaran
     const c=pcoa(g("kodecoa"));if(!c)return bad.push(`Baris ${n}: Kode COA tidak sesuai format PROGRAM.KEGIATAN.KRO.RO.KOMPONEN.SUBKOMP.AKUN.KODE-URAIAN`);
-    d={satker:ns(g("satker")),bagian:g("penanggungjawabanggaran","penanggungjawab","bagian").toUpperCase(),...c};
+    d={satker:ns(g("satker")),bagian:g("penanggungjawabanggaran","penanggungjawab","bagian").toUpperCase(),...c};const kl=g("kodekomponen");if(kl)d.kompLengkap=kl.toUpperCase().replace(/\s/g,"").replace(/\.+$/,"");
     if(!SATKER.includes(d.satker))return bad.push(`Baris ${n}: Satker "${g("satker")}" tidak dikenal`);
     if(!d.bagian)return bad.push(`Baris ${n}: Penanggung Jawab Anggaran wajib diisi`);
     if(kodeSat.includes(d.subkomp)&&KODE[d.satker]!==d.subkomp)warn.push(`Baris ${n}: sub komponen ${d.subkomp} tidak cocok dengan satker ${SN(d.satker)}`)}
@@ -506,11 +515,13 @@ fs:v=>{fSat=v;render()},
   const d={satker:ns(g("satker")),bagian:g("bagian").trim().toUpperCase(),subkomp:g("subkomp"),akun:g("akun"),detail:g("detail"),kunci:ns(g("satker"))+"|"+g("bagian").trim().toUpperCase(),program:g("program"),kegiatan:g("kegiatan"),kro:g("kro"),ro:g("ro"),kode:g("kode"),uraian:g("uraian"),indikator:g("indikator"),satuan:g("satuan"),target:g("target"),pj:g("pj"),rencanaOutput:a("ro")};
   if(!d.satker||!d.bagian)throw Error("Isi Satker dan Penanggung Jawab Anggaran");let id=editId;if(id)await updateDoc(doc(db,"komponen",id),d);else id=(await addDoc(collection(db,"komponen"),{...d,realOutput:[]})).id;
   await setDoc(doc(db,"keu",id),{kunci:d.kunci,pagu:num(g("pagu")),rencana:(KEU[id]&&KEU[id].rencana)||Array(12).fill(0),revisiOleh:me.id,revisiAt:new Date().toISOString()});editId=null}),
- req:run(id=>updateDoc(doc(db,"komponen",id),{reqSent:true})),
- out2:run(async id=>{const d={realOutput:BLN.map((_,i)=>num($(`ro_${id}_${i}`).value)),kendala:$("kd_"+id).value,targetSelesai:$("ts_"+id).value};
+ req:run(id=>setDoc(doc(db,"output",id),{kode:id,reqSent:true},{merge:true})),
+ simpanO:run(async id=>{const t=num($("ot_"+id).value)||1,u=$("os_"+id).value.trim();if(!u)throw Error("Isi jenis satuan output");
+  await setDoc(doc(db,"output",id),{kode:id,target:t,satuan:u,pj:$("oj_"+id).value,diubahOleh:me.id,diubahAt:new Date().toISOString()},{merge:true})}),
+ out2:run(async id=>{const o=O[id]||{},d={realOutput:BLN.map((_,i)=>num($(`ro_${id}_${i}`).value)),kendala:$("kd_"+id).value,targetSelesai:$("ts_"+id).value};
   const f=$("of_"+id).files[0];if(f)d.outputId=await up("output",id,f);
-  if(!f&&!K.find(k=>k.id===id).outputId&&(!d.kendala||!d.targetSelesai))throw Error("Belum ada bukti output: isi kendala dan target penyelesaian");
-  await updateDoc(doc(db,"komponen",id),d)}),
+  if(!f&&!o.outputId&&(!d.kendala||!d.targetSelesai))throw Error("Belum ada bukti output: isi kendala dan target penyelesaian");
+  await setDoc(doc(db,"output",id),{kode:id,...d},{merge:true})}),
  user:run(id=>updateDoc(doc(db,"users",id),{role:$("r"+id).value,jabatan:$("j"+id).value,satker:$("s"+id).value.trim().toUpperCase(),atasan:$("a"+id).value,lingkup:$("l"+id).value.split(",").map(x=>x.trim().toUpperCase()).filter(Boolean)}))
 };
 render();
