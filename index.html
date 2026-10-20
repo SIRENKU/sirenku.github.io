@@ -216,6 +216,9 @@ const kk=k=>String(k.kompLengkap||"").trim()||[k.kegiatan,k.ro,k.kode,k.subkomp]
  coaFull=k=>[k.kegiatan,k.ro,k.kode,k.subkomp,k.akun,k.detail].map(v=>String(v||"").trim()).filter(Boolean).join(".")||k.uraian||"",
  pkRows=(q,b)=>{q=String(q||"").toLowerCase().trim();return K.filter(k=>(!me.satker||!k.satker||ns(k.satker)===ns(me.satker))&&(!b||String(k.bagian||"").toUpperCase()===b)&&(!q||(coaFull(k)+" "+(k.uraian||"")).toLowerCase().includes(q))).sort((a,c)=>coaFull(a).localeCompare(coaFull(c)))},
  pkOpts=(q,b)=>{const r=pkRows(q,b);return r.map(k=>`<option value="${k.id}">${coaFull(k)} · ${k.bagian||""}</option>`).join("")||'<option value="" disabled selected>Tidak ada Kode COA yang cocok</option>'};
+const myBag=()=>{const b=String((PG.find(p=>p.uid===me.id)||{}).bagian||"").toUpperCase();return BAGIAN.find(x=>String(x).toUpperCase()===b)||""},
+ kcOpts=(q,b)=>{if(!b)return '<option value="">Pilih Penanggung Jawab Anggaran dulu</option>';const r=pkRows(q,b);return '<option value="">'+(r.length?"Pilih Kode COA… ("+r.length+" pilihan)":"Tidak ada Kode COA yang cocok")+'</option>'+r.map(k=>`<option value="${k.id}">${esc(coaFull(k))}${k.detail||k.uraian?" — "+esc(k.detail||k.uraian):""}</option>`).join("")},
+ coaPick=p=>{const mb=myBag();return `<label>Penanggung Jawab Anggaran<select id="${p}_pb" onchange="AB.coa('${p}')"><option value="">— pilih —</option>${BAGIAN.map(x=>`<option ${x===mb?"selected":""}>${x}</option>`).join("")}</select></label><label>Cari Kode COA<input id="${p}_pq" oninput="AB.coa('${p}')" autocomplete="off" placeholder="mis. 522151 atau narasumber"></label><label>Kode COA (sesuai pagu anggaran PJ)<select id="${p}_pk" onchange="AB.coaPilih('${p}')">${kcOpts("",mb)}</select></label>`};
 const bagSel=()=>`<details class="ms" ${fBagOpen?"open":""} ontoggle="A.fbo(this.open)"><summary>Penanggung Jawab Anggaran: <b>${fBag.length?(fBag.length<=2?fBag.join(", "):fBag.length+" dipilih"):"Semua"}</b></summary><div class="mp">${BAGIAN.map(x=>`<label><input type="checkbox" ${fBag.includes(x)?"checked":""} onchange="A.fb('${x}',this.checked)"> ${x}</label>`).join("")}<div style="display:flex;gap:8px;margin-top:6px"><button class="b s" onclick="A.fb('*',false)">Hapus pilihan</button><button class="b" onclick="A.fbt()">Tutup</button></div></div></details>`;
 const fbar=()=>`<p style="display:flex;gap:10px;flex-wrap:wrap"><label class="mu">Satker <select onchange="A.fs(this.value)"><option value="">Semua</option>${SATKER.map(x=>`<option value="${x}" ${x===fSat?"selected":""}>${SN(x)}</option>`).join("")}</select></label>${bagSel()}</p>`;
 const LAP=()=>{const rs=KF().filter(k=>KEU[k.id]);
@@ -416,7 +419,7 @@ V.alat=()=>{const T=[["pajak","Kalkulator Pajak"],["honor","Kuitansi Honor Naras
  <p class="mu" style="font-size:12px">Tarif bawaan: PPN 11%; PPh 22 pembelian barang 1,5%; PPh 23 jasa/sewa 2%; PPh 4(2) sewa tanah/bangunan 10%; tanpa NPWP PPh 22/23 dua kali lipat dan PPh 21 naik 20%. Seluruh tarif dan ambang dapat diubah. Ini alat bantu hitung, pastikan tetap sesuai ketentuan perpajakan terbaru. Honorarium non-ASN memakai lapisan tarif 5% tanpa memperhitungkan akumulasi penghasilan setahun.</p></div>
 
  <div id="ap_honor" class="card" style="${alatTab==="honor"?"":"display:none"}"><h3>Kuitansi Honorarium Narasumber</h3>
- <div class="g" oninput="AB.hh()" onchange="AB.hh()">${F("kh_no","Nomor bukti")}${F("kh_ta","Tahun anggaran",thn)}${F("kh_akun","Akun / kode COA")}${F("kh_dari","Sudah terima dari","Bendahara Pengeluaran")}
+ <div class="g" oninput="AB.hh()" onchange="AB.hh()">${F("kh_no","Nomor bukti")}${F("kh_ta","Tahun anggaran",thn)}${coaPick("kh")}${F("kh_akun","Akun / kode COA (terisi otomatis, bisa diedit)")}${F("kh_dari","Sudah terima dari","Bendahara Pengeluaran")}
  ${F("kh_nama","Nama narasumber")}${F("kh_nip","NIP / NIK / NPWP penerima")}${F("kh_jab","Jabatan / instansi")}${F("kh_tgl","Tanggal kuitansi",tglIni(),"date")}
  ${F("kh_qty","Jumlah (mis. jam pelajaran)",1,"number")}${F("kh_sat","Satuan","jam")}${F("kh_tarif","Tarif per satuan (Rp)","","number")}
  ${SEL("kh_gol","Status penerima (PPh 21)",GOL)}${SEL("kh_npwp","NPWP",YT)}</div>
@@ -425,7 +428,7 @@ V.alat=()=>{const T=[["pajak","Kalkulator Pajak"],["honor","Kuitansi Honor Naras
  <p id="kh_out" style="margin:12px 0 6px"></p><p><button class="b" onclick="AB.cetakH()">Cetak kuitansi</button></p></div>
 
  <div id="ap_dinas" class="card" style="${alatTab==="dinas"?"":"display:none"}"><h3>Kuitansi Biaya Perjalanan Dinas</h3>
- <div class="g">${F("kd_no","Nomor bukti")}${F("kd_ta","Tahun anggaran",thn)}${F("kd_akun","Akun / kode COA")}${F("kd_dari","Sudah terima dari","Bendahara Pengeluaran")}
+ <div class="g">${F("kd_no","Nomor bukti")}${F("kd_ta","Tahun anggaran",thn)}${coaPick("kd")}${F("kd_akun","Akun / kode COA (terisi otomatis, bisa diedit)")}${F("kd_dari","Sudah terima dari","Bendahara Pengeluaran")}
  ${F("kd_nama","Nama pelaksana perjalanan")}${F("kd_nip","NIP")}${F("kd_jab","Jabatan / golongan")}${F("kd_st","Nomor surat tugas / SPD")}
  ${F("kd_tujuan","Tempat tujuan")}${F("kd_b","Tanggal berangkat","","date",'onchange="AB.lama()"')}${F("kd_k","Tanggal kembali","","date",'onchange="AB.lama()"')}${F("kd_tgl","Tanggal kuitansi",tglIni(),"date")}</div>
  <p class="mu" id="kd_lama"></p>
@@ -471,6 +474,8 @@ const pubView=a=>{const k=pub.st+"|"+pub.done;if(a.dataset.pk===k)return;a.datas
  else b=`${info}${lk}<div class="g" style="grid-template-columns:1fr">${F("pb_nama","Nama lengkap *","")}${c.jab?F("pb_jab","Jabatan / instansi",""):""}${c.nip?F("pb_nip","NIP / NIK",""):""}${c.hp?F("pb_hp","No. HP","","tel"):""}</div>${c.ttd?`<p class="mu" style="margin:14px 0 4px">Tanda tangan * <button class="b s" style="padding:3px 10px;margin-left:8px" onclick="AB.cv()">Ulangi</button></p><canvas id="pb_cv" width="480" height="180" style="width:100%;height:150px;background:#fff;border:1px solid var(--b);border-radius:10px;touch-action:none;cursor:crosshair"></canvas>`:""}<p><button id="pb_btn" class="b" style="width:100%" onclick="AB.hadir()">Kirim kehadiran</button></p><p id="pb_msg" class="neg" style="margin:0"></p>`;
 a.innerHTML=`<main style="margin:0 auto;max-width:560px"><div class="br" style="color:var(--t);padding:10px 0 16px"><div class="em">${ic("landmark")}</div><div><b>SIRENKU</b><small style="color:var(--m)">Daftar Hadir Kegiatan</small></div></div><div class="card">${b}</div></main>`;if(pub.st==="ok"&&!pub.done&&c.ttd&&!sesiTutup(s))AB.cv()};
 window.AB={
+ coa:p=>{$(p+"_pk").innerHTML=kcOpts($(p+"_pq").value,$(p+"_pb").value)},
+ coaPilih:p=>{const k=K.find(x=>x.id===$(p+"_pk").value);if(k)$(p+"_akun").value=coaFull(k)},
  pilih:k=>{alatTab=k;["pajak","honor","dinas","absen"].forEach(x=>{$("ap_"+x).style.display=x===k?"":"none";$("at_"+x).classList.toggle("on",x===k)});if(k==="pajak")AB.jenis(true)},
  jenis:keep=>{const j=$("tx_jenis").value,D={barang:[11,1.5],jasa:[11,2],sewa:[0,10],honor:[0,0],lain:[0,0]}[j];if(keep!==true){$("tx_ppn").value=D[0];$("tx_pph").value=D[1]}
   const sh=(id,on)=>$(id).style.display=on?"":"none";sh("tx_r_tgg",j!=="honor");sh("tx_r_ppn",j==="barang"||j==="jasa"||j==="lain");sh("tx_r_inc",j==="barang"||j==="jasa"||j==="lain");sh("tx_r_pem",j==="barang"||j==="jasa"||j==="lain");sh("tx_r_pph",j!=="honor");sh("tx_r_gol",j==="honor");sh("tx_r_amb",j==="barang");sh("tx_r_npwp",j==="barang"||j==="jasa"||j==="honor");AB.hit()},
