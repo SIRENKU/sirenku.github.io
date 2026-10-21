@@ -78,6 +78,7 @@ aside{padding-top:max(18px,env(safe-area-inset-top))}
 <symbol id="i-briefcase" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></symbol>
 <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
 <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-calc" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/></symbol>
 <symbol id="i-tool" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></symbol>
 </defs></svg>
 <div id="app"></div>
@@ -169,7 +170,7 @@ function notifs(){const n=[];
  return n}
 
 // ---------- tampilan ----------
-const ICN={alat:"tool",dash:"dash",ajukan:"file",bayar:"wallet",catat:"book",komp:"layers",output:"target",user:"users",pantau:"eye",kepeg:"briefcase",rpd:"trend",lapor:"file",spj:"file",verif:"check",profil:"user"};
+const ICN={kalk:"calc",alat:"tool",dash:"dash",ajukan:"file",bayar:"wallet",catat:"book",komp:"layers",output:"target",user:"users",pantau:"eye",kepeg:"briefcase",rpd:"trend",lapor:"file",spj:"file",verif:"check",profil:"user"};
 const ic=n=>`<svg class="i" viewBox="0 0 24 24"><use href="#i-${n}"/></svg>`;
 function render(){const a=$("app");if(PUB)return pubView(a);
  if(!auth.currentUser){const pt=PORTAL[portal];return a.innerHTML=`<div class="lg"><div class="lb"><div class="em">${ic("landmark")}</div><h1>SIRENKU</h1><p>Sistem Informasi Perencanaan dan Keuangan Terpadu</p>
@@ -178,14 +179,14 @@ function render(){const a=$("app");if(PUB)return pubView(a);
  <label>${portal==="pegawai"?"NIP / NIPPPK":"Username admin"}<input id="em" type="text" autocomplete="username"></label><label>Password<input id="pw" type="password" autocomplete="current-password"></label>
  <div style="display:flex;gap:8px"><button class="b" onclick="A.login()">Masuk sebagai ${pt.t}</button><button class="b s" onclick="A.lupa()">Lupa sandi</button></div><div class="neg">${err}</div></div></div>`}
  if(!me)return a.innerHTML=`<main><div class="card">Memuat profil… Jika terlalu lama, profil belum dibuat. <button class="b s" onclick="A.out()">Keluar</button><div class="neg">${err}</div></div></main>`;
- const tabs=[["dash","Dashboard",!isP()],["komp","Pagu Anggaran",isR("perencana","super_admin")],["rpd","RPD",isR("perencana","super_admin")],["bayar","Pembayaran",!isR("atasan","admin_verif")],["spj","SPJ",true],["catat","Pencatatan & Saldo",isR("admin_catat","super_admin")],["output","Output",!isR("atasan","admin_verif")],["lapor","Rekap Laporan",!isP()],["alat","Alat Bantu Keuangan",!isR("atasan")],["kepeg","Kepegawaian",isR("super_admin")],["profil","Profil Saya",true]].filter(t=>t[2]);
+ const tabs=[["dash","Dashboard",!isP()],["komp","Pagu Anggaran",isR("perencana","super_admin")],["rpd","RPD",isR("perencana","super_admin")],["bayar","Pembayaran",!isR("atasan","admin_verif")],["spj","SPJ",true],["catat","Pencatatan & Saldo",isR("admin_catat","super_admin")],["output","Output",!isR("atasan","admin_verif")],["lapor","Rekap Laporan",!isP()],["kalk","Kalkulator Bruto",!isR("atasan")],["alat","Alat Bantu Keuangan",!isR("atasan")],["kepeg","Kepegawaian",isR("super_admin")],["profil","Profil Saya",true]].filter(t=>t[2]);
  if(!tabs.find(t=>t[0]===tab))tab=tabs[0][0];
- if(tab==="alat"&&!forceR&&document.getElementById("alat-root"))return;forceR=false;
+ if(tab==="alat"&&!forceR&&document.getElementById("alat-root"))return;if(tab==="kalk"&&!forceR&&document.getElementById("kalk-root"))return;forceR=false;
  const nf=[...notifs(),...notifP()],cur=tabs.find(t=>t[0]===tab);
  a.innerHTML=`<div class="shell"><aside><div class="br"><div class="em">${ic("landmark")}</div><div><b>SIRENKU</b><small>Perencanaan & Keuangan</small></div></div>
  <nav>${tabs.map(t=>`<button class="${t[0]===tab?"on":""}" onclick="A.go('${t[0]}')">${ic(ICN[t[0]])}${t[1]}</button>`).join("")}</nav>
  <div class="us"><span class="av">${(me.nama||"?")[0].toUpperCase()}</span><div><b>${me.nama}</b><small>${me.jabatan||ROLES[me.role]}</small></div><button title="Keluar" onclick="A.out()">${ic("out")}</button></div></aside>
- <main><h1 class="pt">${ic(ICN[tab])}${cur[1]}</h1>${nf.map(x=>`<div class="n">${ic("bell")}<span>${x}</span></div>`).join("")}<div class="neg">${err}</div>${V[tab]()}</main></div>`;if(tab==="alat"){AB.jenis(true);AB.mulai()}}
+ <main><h1 class="pt">${ic(ICN[tab])}${cur[1]}</h1>${nf.map(x=>`<div class="n">${ic("bell")}<span>${x}</span></div>`).join("")}<div class="neg">${err}</div>${V[tab]()}</main></div>`;if(tab==="alat"){AB.jenis(true);AB.mulai()}if(tab==="kalk")KB.jenis(true)}
 
 const kat=p=>p.kategori||(p.jamuan?"jamuan":""),KATN={bbm:"BBM",jamuan:"Jamuan Tamu Ruang Pimpinan","":"Lainnya"},
 fd=d=>d.toLocaleDateString("id-ID",{day:"numeric",month:"long",year:"numeric"}),sisa=d=>Math.ceil((d-new Date())/864e5),
@@ -473,6 +474,37 @@ const pubView=a=>{const k=pub.st+"|"+pub.done;if(a.dataset.pk===k)return;a.datas
  else if(sesiTutup(s))b=`${info}<p class="neg">Absen untuk kegiatan ini sudah ditutup.</p>${lk}`;
  else b=`${info}${lk}<div class="g" style="grid-template-columns:1fr">${F("pb_nama","Nama lengkap *","")}${c.jab?F("pb_jab","Jabatan / instansi",""):""}${c.nip?F("pb_nip","NIP / NIK",""):""}${c.hp?F("pb_hp","No. HP","","tel"):""}</div>${c.ttd?`<p class="mu" style="margin:14px 0 4px">Tanda tangan * <button class="b s" style="padding:3px 10px;margin-left:8px" onclick="AB.cv()">Ulangi</button></p><canvas id="pb_cv" width="480" height="180" style="width:100%;height:150px;background:#fff;border:1px solid var(--b);border-radius:10px;touch-action:none;cursor:crosshair"></canvas>`:""}<p><button id="pb_btn" class="b" style="width:100%" onclick="AB.hadir()">Kirim kehadiran</button></p><p id="pb_msg" class="neg" style="margin:0"></p>`;
 a.innerHTML=`<main style="margin:0 auto;max-width:560px"><div class="br" style="color:var(--t);padding:10px 0 16px"><div class="em">${ic("landmark")}</div><div><b>SIRENKU</b><small style="color:var(--m)">Daftar Hadir Kegiatan</small></div></div><div class="card">${b}</div></main>`;if(pub.st==="ok"&&!pub.done&&c.ttd&&!sesiTutup(s))AB.cv()};
+
+// ---------- kalkulator bruto & pajak ----------
+// Ketentuan: (1) penyedia/penyalur menerima uang sesuai NOTA tanpa potongan apa pun;
+//            (2) pajak dihitung dari nilai BRUTO.  Maka  Bruto = Nota ÷ (1 − total tarif pajak),  Pajak = tarif × Bruto.
+V.kalk=()=>`<div id="kalk-root"><div class="card"><h3>Kalkulator Bruto &amp; Pajak</h3>
+ <p class="mu">Ketentuan perhitungan: <b>(1)</b> penyedia / penyalur tetap menerima uang <b>sesuai NOTA</b> tanpa potongan apa pun; <b>(2)</b> pajak dihitung dari <b>nilai Bruto</b>. Karena pajak dihitung dari bruto dan ditanggung di luar nota, bruto dicari dengan rumus <b>Bruto = Nota ÷ (1 − total tarif pajak)</b>.</p>
+ <div class="g" oninput="KB.hit()" onchange="KB.hit()">
+  <label>Jenis belanja<select id="kb_jenis" onchange="KB.jenis()"><option value="barang">Pembelian barang (PPN + PPh 22)</option><option value="jasa">Jasa / sewa selain tanah-bangunan (PPN + PPh 23)</option><option value="sewa">Sewa tanah dan/atau bangunan (PPh 4 ayat 2)</option><option value="honor">Honorarium / narasumber (PPh 21)</option><option value="lain">Lainnya (tarif diisi sendiri)</option></select></label>
+  <label>Jumlah sesuai NOTA (Rp) — diterima penyedia<input id="kb_nota" type="number" min="0" placeholder="0"></label>
+  <label id="kb_r_ppn">Tarif PPN (%)<input id="kb_ppn" type="number" step="0.01" value="11"></label>
+  <label id="kb_r_pph">Tarif PPh dasar (%)<input id="kb_pph" type="number" step="0.01" value="1.5"></label>
+  <label id="kb_r_gol" style="display:none">Status penerima honorarium<select id="kb_gol">${GOL.map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select></label>
+  <label id="kb_r_npwp">Kepemilikan NPWP<select id="kb_npwp">${YT.map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select></label>
+ </div>
+ <div id="kb_out" class="tw" style="margin-top:14px"></div>
+ <p class="mu" style="font-size:12px">Tarif bawaan: PPN 11%; PPh 22 pembelian barang 1,5%; PPh 23 jasa 2%; PPh 4(2) sewa tanah/bangunan 10%. Tanpa NPWP, PPh 22/23 dua kali lipat dan PPh 21 naik 20%. Honorarium non-ASN memakai 5% × 50% dari bruto. Seluruh tarif dapat diubah (isi 0 bila suatu pajak tidak dikenakan). Ini alat bantu hitung, pastikan tetap sesuai ketentuan perpajakan terbaru.</p></div></div>`;
+window.KB={
+ jenis:keep=>{const j=$("kb_jenis").value,D={barang:[11,1.5],jasa:[11,2],sewa:[0,10],honor:[0,0],lain:[0,0]}[j];if(keep!==true){$("kb_ppn").value=D[0];$("kb_pph").value=D[1]}
+  const sh=(id,on)=>$(id).style.display=on?"":"none",ppn=j==="barang"||j==="jasa"||j==="lain";
+  sh("kb_r_ppn",ppn);sh("kb_r_pph",j!=="honor");sh("kb_r_gol",j==="honor");sh("kb_r_npwp",j==="barang"||j==="jasa"||j==="honor");KB.hit()},
+ hit:()=>{const g=id=>$(id).value,j=g("kb_jenis"),N=Math.round(num(g("kb_nota"))),np=g("kb_npwp")==="1"||!(j==="barang"||j==="jasa"||j==="honor"),
+  ppnR=(j==="barang"||j==="jasa"||j==="lain")?num(g("kb_ppn")):0;
+  let pphR;if(j==="honor"){const gl=g("kb_gol"),r=gl==="nonasn"?2.5:+gl;pphR=np?r:r*1.2}else{const r=num(g("kb_pph"));pphR=(j==="barang"||j==="jasa")&&!np?r*2:r}
+  pphR=Math.round(pphR*100)/100;const T=ppnR+pphR,pc=x=>x.toLocaleString("id-ID",{maximumFractionDigits:4}),LB={barang:"PPh Pasal 22",jasa:"PPh Pasal 23",sewa:"PPh Pasal 4 ayat (2) final",honor:"PPh Pasal 21",lain:"PPh"}[j],o=$("kb_out");
+  if(T>=100){o.innerHTML='<p class="neg">Total tarif pajak harus kurang dari 100%.</p>';return}
+  if(!N){o.innerHTML='<p class="mu">Isi jumlah sesuai nota untuk melihat hasil perhitungan.</p>';return}
+  const B=Math.round(N/(1-T/100)),pj=B-N,ppn=ppnR>0?Math.min(pj,Math.round(B*ppnR/100)):0,pph=pj-ppn,
+  r=(a,b,bold)=>`<tr><td class="l">${bold?"<b>"+a+"</b>":a}</td><td>${bold?"<b>"+b+"</b>":b}</td></tr>`;
+  o.innerHTML=`<table>${r("Uang yang diterima penyedia / penyalur (sesuai NOTA, tanpa potongan)",rp(N),1)}${r("Nilai BRUTO = Nota ÷ (1 − "+pc(T)+"%)",rp(B),1)}${ppnR>0?r("PPN "+pc(ppnR)+"% × Bruto",rp(ppn)):""}${pphR>0||ppnR===0?r(LB+" "+pc(pphR)+"% × Bruto",rp(pph)):""}${r("Total pajak (disetor ke kas negara)",rp(pj),1)}${r("Pemeriksaan: Bruto − Pajak = Nota",rp(B-pj))}</table>
+  <div class="n" style="margin-top:12px">${ic("file")}<span>Pada form permintaan pembayaran isi <b>Nominal total</b> = ${rp(B)} dan <b>Pajak</b> = ${rp(pj)}; jumlah yang dibayarkan ke penyedia otomatis ${rp(N)} sesuai nota.</span></div>`}
+};
 window.AB={
  coa:p=>{$(p+"_pk").innerHTML=kcOpts($(p+"_pq").value,$(p+"_pb").value)},
  coaPilih:p=>{const k=K.find(x=>x.id===$(p+"_pk").value);if(k)$(p+"_akun").value=coaFull(k)},
