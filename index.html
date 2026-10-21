@@ -405,7 +405,8 @@ V.alat=()=>{const T=[["pajak","Kalkulator Pajak"],["honor","Kuitansi Honor Naras
  <div id="ap_pajak" class="card" style="${alatTab==="pajak"?"":"display:none"}"><h3>Kalkulator Pajak Belanja</h3>
  <div class="g" oninput="AB.hit()" onchange="AB.hit()">
   <label>Jenis belanja<select id="tx_jenis" onchange="AB.jenis()"><option value="barang">Pembelian barang (PPN + PPh 22)</option><option value="jasa">Jasa / sewa selain tanah-bangunan (PPN + PPh 23)</option><option value="sewa">Sewa tanah dan/atau bangunan (PPh 4 ayat 2)</option><option value="honor">Honorarium / narasumber (PPh 21)</option><option value="lain">Lainnya (tarif diisi sendiri)</option></select></label>
-  <label>Jumlah sesuai NOTA (Rp) — diterima penyedia<input id="tx_nilai" type="number" min="0" placeholder="0"></label>
+  <label>Jumlah NOTA (Rp) — angka yang diterima penyedia<input id="tx_nilai" type="number" min="0" placeholder="0"></label>
+  <label>Pembulatan nilai bruto (ke atas)<select id="tx_bulat"><option value="1000" selected>Kelipatan Rp 1.000</option><option value="100">Kelipatan Rp 100</option><option value="1">Tanpa pembulatan</option></select></label>
   <label id="tx_r_ppn">Tarif PPN (%)<input id="tx_ppn" type="number" step="0.01" value="11"></label>
   <label id="tx_r_pph">Tarif PPh dasar (%)<input id="tx_pph" type="number" step="0.01" value="1.5"></label>
   <label id="tx_r_gol" style="display:none">Status penerima honorarium<select id="tx_gol">${GOL.map(([v,t])=>`<option value="${v}">${t}</option>`).join("")}</select></label>
@@ -414,7 +415,7 @@ V.alat=()=>{const T=[["pajak","Kalkulator Pajak"],["honor","Kuitansi Honor Naras
   <label id="tx_r_amb">Ambang tidak dipungut (Rp)<input id="tx_amb" type="number" value="2000000"></label>
  </div>
  <div id="tx_out" class="tw" style="margin-top:14px"></div>
- <p class="mu" style="font-size:12px">Tarif bawaan: PPN 11%; PPh 22 pembelian barang 1,5%; PPh 23 jasa/sewa 2%; PPh 4(2) sewa tanah/bangunan 10%; tanpa NPWP PPh 22/23 dua kali lipat dan PPh 21 naik 20%. Penyedia menerima uang sesuai nota tanpa potongan, dan alur hitungnya Nota → Bruto → DPP, dan pajak (PPN serta PPh) dihitung dari DPP. Seluruh tarif dan ambang dapat diubah. Ini alat bantu hitung, pastikan tetap sesuai ketentuan perpajakan terbaru. Honorarium non-ASN memakai 5% × 50% dari bruto tanpa memperhitungkan akumulasi penghasilan setahun.</p></div>
+ <p class="mu" style="font-size:12px">Tarif bawaan: PPN 11%; PPh 22 pembelian barang 1,5%; PPh 23 jasa/sewa 2%; PPh 4(2) sewa tanah/bangunan 10%; tanpa NPWP PPh 22/23 dua kali lipat dan PPh 21 naik 20%. Penyedia menerima uang sesuai nota tanpa potongan, dan alur hitungnya Nota → Bruto (dibulatkan ke atas) → DPP, dan pajak (PPN serta PPh) dihitung dari DPP. Seluruh tarif dan ambang dapat diubah. Ini alat bantu hitung, pastikan tetap sesuai ketentuan perpajakan terbaru. Honorarium non-ASN memakai 5% × 50% dari bruto tanpa memperhitungkan akumulasi penghasilan setahun.</p></div>
 
  <div id="ap_honor" class="card" style="${alatTab==="honor"?"":"display:none"}"><h3>Kuitansi Honorarium Narasumber</h3>
  <div class="g" oninput="AB.hh()" onchange="AB.hh()">${F("kh_no","Nomor bukti")}${F("kh_ta","Tahun anggaran",thn)}${coaPick("kh")}${F("kh_akun","Akun / kode COA (terisi otomatis, bisa diedit)")}${F("kh_dari","Sudah terima dari","Bendahara Pengeluaran")}
@@ -477,24 +478,30 @@ window.AB={
  pilih:k=>{alatTab=k;["pajak","honor","dinas","absen"].forEach(x=>{$("ap_"+x).style.display=x===k?"":"none";$("at_"+x).classList.toggle("on",x===k)});if(k==="pajak")AB.jenis(true)},
  jenis:keep=>{const j=$("tx_jenis").value,D={barang:[11,1.5],jasa:[11,2],sewa:[0,10],honor:[0,0],lain:[0,0]}[j];if(keep!==true){$("tx_ppn").value=D[0];$("tx_pph").value=D[1]}
   const sh=(id,on)=>$(id).style.display=on?"":"none";sh("tx_r_ppn",j==="barang"||j==="jasa"||j==="lain");sh("tx_r_pem",j==="barang"||j==="jasa"||j==="lain");sh("tx_r_pph",j!=="honor");sh("tx_r_gol",j==="honor");sh("tx_r_amb",j==="barang");sh("tx_r_npwp",j==="barang"||j==="jasa"||j==="honor");AB.hit()},
- hit:()=>{const g=id=>$(id).value,j=g("tx_jenis"),N=Math.round(num(g("tx_nilai"))),isP=["barang","jasa","lain"].includes(j),ppnR=isP?num(g("tx_ppn")):0,
+ hit:()=>{const g=id=>$(id).value,j=g("tx_jenis"),Vin=Math.round(num(g("tx_nilai"))),U=Math.max(1,Math.round(num(g("tx_bulat")))||1),isP=["barang","jasa","lain"].includes(j),ppnR=isP?num(g("tx_ppn")):0,
   np=g("tx_npwp")==="1"||!(j==="barang"||j==="jasa"||j==="honor"),pem=isP?g("tx_pem")==="1":true;
   // Alur: NOTA -> BRUTO -> DPP -> pajak (PPN & PPh dihitung dari DPP). Penyedia menerima NOTA penuh tanpa potongan.
   // Bruto = DPP + PPN;  Bruto - PPN - PPh = Nota  =>  DPP = Nota / (1 - tarif PPh),  Bruto = DPP x (1 + tarif PPN)
   let pphR;if(j==="honor"){const gl=g("tx_gol"),r=gl==="nonasn"?2.5:+gl;pphR=np?r:r*1.2}else{const r=num(g("tx_pph"));pphR=(j==="barang"||j==="jasa")&&!np?r*2:r}
   pphR=Math.round(pphR*100)/100;
-  const bebas=j==="barang"&&N>0&&g("tx_amb")!==""&&N<=num(g("tx_amb")),pc=x=>x.toLocaleString("id-ID",{maximumFractionDigits:4}),o=$("tx_out"),
+  const bebas=j==="barang"&&Vin>0&&g("tx_amb")!==""&&Vin<=num(g("tx_amb")),pc=x=>x.toLocaleString("id-ID",{maximumFractionDigits:4}),o=$("tx_out"),
   LB={barang:"PPh Pasal 22",jasa:"PPh Pasal 23",sewa:"PPh Pasal 4 ayat (2) final",honor:"PPh Pasal 21",lain:"PPh"}[j];
   if(pphR>=100){o.innerHTML='<p class="neg">Tarif PPh harus kurang dari 100%.</p>';return}
-  if(!N){o.innerHTML='<p class="mu">Isi jumlah sesuai nota untuk melihat hasil perhitungan.</p>';return}
-  const rP=bebas?0:pphR,rN=bebas?0:ppnR,dx=N/(1-rP/100),pph=Math.round(dx*rP/100),ppn=Math.round(dx*rN/100),DPP=N+pph,B=DPP+ppn,pj=ppn+pph,
+  if(!Vin){o.innerHTML='<p class="mu">Isi jumlah nota untuk melihat hasil perhitungan.</p>';return}
+  const rP=bebas?0:pphR,rN=bebas?0:ppnR,q=1+rN/100,rr=rP/100,f2=x=>"Rp "+x.toLocaleString("id-ID",{minimumFractionDigits:2,maximumFractionDigits:2}),
+  hh=b=>{const d=Math.round(b/q*100)/100;return{d,h:Math.round(d*rr)}};
+  // Bruto dicari dari Nota; DPP = Bruto / (1 + PPN); PPN = Bruto - DPP; PPh = tarif x DPP; Nota = DPP - PPh
+  const cb=n=>{let b=Math.round(n*q/(1-rr));for(const k of [0,1,-1,2,-2]){const c=hh(b+k);if(Math.round(c.d-c.h)===n){b+=k;break}}return b};
+  // Bruto dicari dari Nota, lalu dibulatkan KE ATAS; nota yang diterima penyedia = DPP - PPh (tidak pernah kurang dari angka nota)
+  let B=cb(Vin),N=Vin;if(!bebas){B=Math.ceil(B/U)*U;let c=hh(B);N=Math.round(c.d-c.h);for(let i=0;i<5&&N<Vin;i++){B+=U;c=hh(B);N=Math.round(c.d-c.h)}}
+  const {d:DPP,h:pph}=hh(B),pj=B-N,ppn=pj-pph,ppnX=Math.round((B-DPP)*100)/100,
   tampung=ppn>0&&!pem,setor=(pem?ppn:0)+pph,bayar=B-setor,
   r=(a,b,bold)=>`<tr><td class="l">${bold?"<b>"+a+"</b>":a}</td><td>${bold?"<b>"+b+"</b>":b}</td></tr>`;
-  o.innerHTML=`<table>${r("1. Jumlah sesuai NOTA (diterima penyedia, tanpa potongan)",rp(N),1)}
-  ${r("2. Nilai BRUTO"+(bebas?"":" = DPP"+(ppnR>0?" + PPN":"")+" = Nota"+(ppnR>0?" × (1 + "+pc(ppnR)+"%)":"")+" ÷ (1 − "+pc(pphR)+"%)"),rp(B),1)}
-  ${r("3. Dasar Pengenaan Pajak (DPP)"+(ppnR>0&&!bebas?" = Bruto ÷ (1 + "+pc(ppnR)+"%)":" = Bruto"),rp(DPP),1)}
-  ${ppnR>0?r("PPN "+pc(rN)+"% × DPP"+(bebas?" (tidak dipungut)":""),rp(ppn)):""}${pphR>0||ppnR===0?r(LB+" "+pc(rP)+"% × DPP"+(bebas?" (tidak dipungut)":""),rp(pph)):""}${r("Total pajak (dihitung dari DPP)",rp(pj),1)}${r("Pajak disetor bendahara ke kas negara",rp(setor))}${r("Dibayarkan ke penyedia / penerima"+(tampung?" (nota + PPN)":" (sesuai nota)"),rp(bayar),1)}${r("Pemeriksaan: Bruto − Pajak yang disetor bendahara = dibayarkan",rp(B-setor))}</table>
-  ${bebas?'<p class="mu">Nota tidak melebihi ambang batas, sehingga pajak tidak dipungut bendahara dan bruto sama dengan nota.</p>':""}${tampung?'<p class="mu">PPN dibayarkan kepada penyedia (PKP) di atas nota dan disetor sendiri oleh penyedia.</p>':""}
+  o.innerHTML=`<table>${r("1. Jumlah NOTA (angka yang diinput)",rp(Vin),1)}
+  ${r("2. Nilai BRUTO"+(bebas?"":" = Nota"+(ppnR>0?" × (1 + "+pc(ppnR)+"%)":"")+" ÷ (1 − "+pc(pphR)+"%)"+(U>1?", dibulatkan ke atas kelipatan "+rp(U):"")),rp(B),1)}
+  ${r("3. Dasar Pengenaan Pajak (DPP)"+(ppnR>0&&!bebas?" = Bruto ÷ (1 + "+pc(ppnR)+"%)":" = Bruto"),(ppnR>0&&!bebas?f2(DPP):rp(DPP)),1)}
+  ${ppnR>0?r("PPN "+pc(rN)+"% × DPP"+(bebas?" (tidak dipungut)":""),bebas?rp(0):f2(ppnX)):""}${pphR>0||ppnR===0?r(LB+" "+pc(rP)+"% × DPP"+(bebas?" (tidak dipungut)":""),rp(pph)):""}${r("Total pajak (dihitung dari DPP)",rp(pj),1)}${r("Pajak disetor bendahara ke kas negara",rp(setor))}${r("Dibayarkan ke penyedia / penerima = DPP − PPh"+(tampung?" + PPN":""),rp(bayar),1)}${r("Pemeriksaan: Bruto − Pajak yang disetor bendahara = dibayarkan",rp(B-setor))}</table>
+  ${N>Vin?'<p class="mu">Karena bruto dibulatkan ke atas, penyedia menerima '+rp(N)+' (lebih besar '+rp(N-Vin)+' dari angka nota '+rp(Vin)+'). Pajak tetap dihitung tepat dari DPP.</p>':""}${bebas?'<p class="mu">Nota tidak melebihi ambang batas, sehingga pajak tidak dipungut bendahara dan bruto sama dengan nota.</p>':""}${tampung?'<p class="mu">PPN dibayarkan kepada penyedia (PKP) di atas nota dan disetor sendiri oleh penyedia.</p>':""}
   <div class="n" style="margin-top:12px">${ic("file")}<span>Pada form permintaan pembayaran isi <b>Nominal total</b> = ${rp(B)} dan <b>Pajak</b> = ${rp(setor)}; jumlah yang dibayarkan ke penyedia otomatis ${rp(bayar)}.</span></div>`},
  hh:()=>{const q=num($("kh_qty").value)||1,b=q*num($("kh_tarif").value),x=pph21(b,$("kh_gol").value,$("kh_npwp").value==="1");$("kh_out").innerHTML=`Bruto <b>${rp(b)}</b> · PPh 21 (${x.r}%) <b>${rp(x.p)}</b> · Diterima <b>${rp(b-x.p)}</b>`},
  cetakH:()=>{const v=id=>$(id).value.trim();if(!v("kh_nama")||!(num($("kh_tarif").value)>0)){alert("Isi nama narasumber dan tarif honorarium.");return}
